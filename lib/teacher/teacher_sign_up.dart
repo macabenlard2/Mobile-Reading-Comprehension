@@ -3,8 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:reading_comprehension/widgets/background.dart'; // Import the Background widget
 import 'package:reading_comprehension/utils/code_generator.dart';  // Import the code generator
-import 'dart:math';
-
 
 class SignUpTeacher extends StatefulWidget {
   const SignUpTeacher({super.key});
@@ -153,136 +151,137 @@ class _SignUpTeacherState extends State<SignUpTeacher> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,  // Allow the widget to resize when the keyboard appears
       body: Background(
-        child: Padding(
-          padding: const EdgeInsets.all(15.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(
-                  top: 50,
-                  bottom: 50,
-                ),
-                height: 50,
-                child: const Text(
-                  "Teacher Registration",
-                  style: TextStyle(
-                    fontSize: 25,
-                    fontWeight: FontWeight.w500,
+        child: SingleChildScrollView(  // Wrap content in SingleChildScrollView to make it scrollable
+          child: Padding(
+            padding: const EdgeInsets.all(15.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(
+                    top: 50,
+                    bottom: 50,
                   ),
-                ),
-              ),
-              TextFormField(
-                controller: _firstNameController,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.person),
-                  labelText: "First Name",
-                  hintText: "Enter Your First Name",
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _lastNameController,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.person),
-                  labelText: "Last Name",
-                  hintText: "Enter Your Last Name",
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                keyboardType: TextInputType.emailAddress,
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.email),
-                  labelText: "Email Address",
-                  hintText: "Enter Your Email Address",
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: !_showPassword,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _showPassword ? Icons.visibility : Icons.visibility_off,
-                    ),
-                    onPressed: _togglePasswordVisibility,
-                  ),
-                  labelText: "Password",
-                  hintText: "Enter Your Password",
-                  border: const OutlineInputBorder(
-                    borderSide: BorderSide(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _confirmPasswordController,
-                obscureText: !_showConfirmPassword,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _showConfirmPassword ? Icons.visibility : Icons.visibility_off,
-                    ),
-                    onPressed: _toggleConfirmPasswordVisibility,
-                  ),
-                  labelText: "Confirm Password",
-                  hintText: "Confirm Your Password",
-                  border: const OutlineInputBorder(
-                    borderSide: BorderSide(),
-                  ),
-                ),
-              ),
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 20),
-                Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ],
-              const SizedBox(height: 20),
-              if (_loading) ...[
-                const SizedBox(height: 20),
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
-                ),
-                const SizedBox(height: 20),
-              ],
-              SizedBox(
-                height: 55,
-                width: 500,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                  ),
-                  onPressed: _isButtonDisabled ? null : signUp,
+                  height: 50,
                   child: const Text(
-                    "Sign Up",
+                    "Teacher Registration",
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: Colors.white,
+                      fontSize: 25,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
-              ),
-            ],
+                TextFormField(
+                  controller: _firstNameController,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.person),
+                    labelText: "First Name",
+                    hintText: "Enter Your First Name",
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _lastNameController,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.person),
+                    labelText: "Last Name",
+                    hintText: "Enter Your Last Name",
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  keyboardType: TextInputType.emailAddress,
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.email),
+                    labelText: "Email Address",
+                    hintText: "Enter Your Email Address",
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: !_showPassword,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showPassword ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: _togglePasswordVisibility,
+                    ),
+                    labelText: "Password",
+                    hintText: "Enter Your Password",
+                    border: const OutlineInputBorder(
+                      borderSide: BorderSide(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _confirmPasswordController,
+                  obscureText: !_showConfirmPassword,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: _toggleConfirmPasswordVisibility,
+                    ),
+                    labelText: "Confirm Password",
+                    hintText: "Confirm Your Password",
+                    border: const OutlineInputBorder(
+                      borderSide: BorderSide(),
+                    ),
+                  ),
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                if (_loading) ...[
+                  const SizedBox(height: 20),
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+                SizedBox(
+                  height: 55,
+                  width: 500,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                    onPressed: _isButtonDisabled ? null : signUp,
+                    child: const Text(
+                      "Sign Up",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
