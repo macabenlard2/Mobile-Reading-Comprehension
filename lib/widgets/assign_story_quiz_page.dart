@@ -8,23 +8,28 @@ class AssignStoryQuizPage extends StatefulWidget {
   const AssignStoryQuizPage({super.key, required this.teacherId});
 
   @override
-  // ignore: library_private_types_in_public_api
   _AssignStoryQuizPageState createState() => _AssignStoryQuizPageState();
 }
 
 class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
-  String? selectedStudent;
+  List<String> selectedStudents = [];
+  String searchQuery = '';
+  String? selectedGradeLevel = 'All';
+  String? selectedReadingType;
+  String? selectedStoryType;
+  String? selectedPassageSet;
   String? selectedStory;
   String? selectedQuiz;
+  bool selectAll = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Assign Passage',
+          'Assign Passage and Quiz',
           style: TextStyle(
-            color: Colors.white,
+            color: Colors.white, // Ensure the title is white
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -32,152 +37,379 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
         centerTitle: true,
         automaticallyImplyLeading: true,
         leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: Background(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('Students').where('teacherId', isEqualTo: widget.teacherId).snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const CircularProgressIndicator();
-                    }
-                    var students = snapshot.data!.docs;
-                    return DropdownButtonFormField<String>(
-                      value: selectedStudent,
-                      hint: const Text('Select Student'),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedStudent = value;
-                        });
-                      },
-                      items: students.map((student) {
-                        String name = (student['firstName'] ?? 'No Firstname') + ' ' + (student['lastName'] ?? 'No Lastname');
-                        return DropdownMenuItem<String>(
-                          value: student.id,
-                          child: Text(name),
-                        );
-                      }).toList(),
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            children: [
+              // Filters Section in Expandable Panels
+              Expanded(
+                flex: 2,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  children: [
+                    _buildExpandableFilterCard(
+                      title: 'Reading Type',
+                      icon: Icons.filter_list,
+                      children: [
+                        _buildDropdown(
+                          label: 'Reading Type',
+                          value: selectedReadingType,
+                          items: ['Oral', 'Silent']
+                              .map((type) => DropdownMenuItem<String>(
+                                    value: type,
+                                    child: Text(type, style: const TextStyle(color: Colors.black)), // Change text color here
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedReadingType = value;
+                            });
+                          },
                         ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('Stories').where('teacherId', isEqualTo: widget.teacherId).snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const CircularProgressIndicator();
-                    }
-                    var stories = snapshot.data!.docs;
-                    return DropdownButtonFormField<String>(
-                      value: selectedStory,
-                      hint: const Text('Select Story'),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedStory = value;
-                        });
-                      },
-                      items: stories.map((story) {
-                        return DropdownMenuItem<String>(
-                          value: story.id,
-                          child: Text(story['title'] ?? 'No Title'),
-                        );
-                      }).toList(),
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('Quizzes').where('teacherId', isEqualTo: widget.teacherId).snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const CircularProgressIndicator();
-                    }
-                    var quizzes = snapshot.data!.docs;
-                    return DropdownButtonFormField<String>(
-                      value: selectedQuiz,
-                      hint: const Text('Select Quiz'),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedQuiz = value;
-                        });
-                      },
-                      items: quizzes.map((quiz) {
-                        return DropdownMenuItem<String>(
-                          value: quiz.id,
-                          child: Text(quiz['title'] ?? 'No Title'),
-                        );
-                      }).toList(),
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () {
-                    if (selectedStudent != null && selectedStory != null && selectedQuiz != null) {
-                      FirebaseFirestore.instance.collection('AssignedQuizzes').add({
-                        'studentId': selectedStudent,
-                        'storyId': selectedStory,
-                        'quizId': selectedQuiz,
-                        'teacherId': widget.teacherId,
-                      }).then((_) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Story and Quiz Assigned Successfully')),
-                        );
-                        Navigator.pop(context);
-                      }).catchError((error) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to assign: $error')),
-                        );
-                      });
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please select all fields')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF15A323),
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-                    textStyle: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      ],
                     ),
-                  ),
-                  child: const Text('Assign', style: TextStyle(
-                    color: Colors.black,
-                  )),
+                    const SizedBox(height: 8),
+                    _buildExpandableFilterCard(
+                      title: 'Story Type & Passage Set',
+                      icon: Icons.book,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildDropdown(
+                                label: 'Story Type',
+                                value: selectedStoryType,
+                                items: ['Custom', 'Pretest', 'Posttest']
+                                    .map((type) => DropdownMenuItem<String>(
+                                          value: type,
+                                          child: Text(type, style: const TextStyle(color: Colors.black)), // Change text color here
+                                        ))
+                                    .toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedStoryType = value;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildDropdown(
+                                label: 'Passage Set',
+                                value: selectedPassageSet,
+                                items: ['A', 'B', 'C', 'D']
+                                    .map((set) => DropdownMenuItem<String>(
+                                          value: set,
+                                          child: Text(set, style: const TextStyle(color: Colors.black)), // Change text color here
+                                        ))
+                                    .toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedPassageSet = value;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildExpandableFilterCard(
+                      title: 'Select Story & Quiz',
+                      icon: Icons.question_answer,
+                      children: [
+                        StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('Stories')
+                              .where('teacherId', isEqualTo: widget.teacherId)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            var stories = snapshot.data!.docs;
+                            return _buildDropdown(
+                              label: 'Select Story',
+                              value: selectedStory,
+                              items: stories
+                                  .map((story) => DropdownMenuItem<String>(
+                                        value: story.id,
+                                        child: Text(story['title'] ?? 'No Title', style: const TextStyle(color: Colors.black)), // Change text color here
+                                      ))
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  selectedStory = value;
+                                  selectedQuiz = null; // Reset quiz selection
+                                  fetchAssociatedQuiz(value);
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const Divider(thickness: 2, color: Colors.grey), // Enhanced Divider
+              const SizedBox(height: 8),
+              // Search and Grade Level combined with Select All
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('Students')
+                    .where('teacherId', isEqualTo: widget.teacherId)
+                    .where('gradeLevel', isEqualTo: selectedGradeLevel != 'All' ? selectedGradeLevel : null)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  var students = snapshot.data!.docs;
+
+                  return Expanded(
+                    flex: 3,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  onChanged: (value) {
+                                    setState(() {
+                                      searchQuery = value.toLowerCase();
+                                    });
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'Search Students',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: Color(0xFF15A323)),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                flex: 2,
+                                child: _buildDropdown(
+                                  label: 'Grade Level',
+                                  value: selectedGradeLevel,
+                                  items: ['All', '3', '4', '5', '6']
+                                      .map((grade) => DropdownMenuItem<String>(
+                                            value: grade,
+                                            child: Text(grade, style: const TextStyle(color: Colors.black)), // Change text color here
+                                          ))
+                                      .toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      selectedGradeLevel = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                children: [
+                                  Checkbox(
+                                    value: selectAll,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        selectAll = value ?? false;
+                                        selectedStudents.clear();
+                                        if (selectAll) {
+                                          selectedStudents.addAll(students.map((doc) => doc.id));
+                                        }
+                                      });
+                                    },
+                                    activeColor: const Color(0xFF15A323),
+                                  ),
+                                  const Text(
+                                    "All",
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black), // Change text color here
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // List of Students with Checkboxes
+                        Expanded(
+                          child: Card(
+                            elevation: 3,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            margin: const EdgeInsets.all(8),
+                            child: ListView.builder(
+                              itemCount: students.length,
+                              itemBuilder: (context, index) {
+                                var student = students[index];
+                                String name = (student['firstName'] ?? 'No Firstname') +
+                                    ' ' +
+                                    (student['lastName'] ?? 'No Lastname');
+                                return CheckboxListTile(
+                                  title: Text(
+                                    name,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black), // Change text color here
+                                  ),
+                                  value: selectedStudents.contains(student.id),
+                                  onChanged: (bool? selected) {
+                                    setState(() {
+                                      if (selected!) {
+                                        selectedStudents.add(student.id);
+                                      } else {
+                                        selectedStudents.remove(student.id);
+                                      }
+                                    });
+                                  },
+                                  controlAffinity: ListTileControlAffinity.leading,
+                                  activeColor: const Color(0xFF15A323),
+                                  checkColor: Colors.white,
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  assignQuizToStudents();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF15A323),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Assign to Students',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  // Helper method for creating expandable filter cards
+  Widget _buildExpandableFilterCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ExpansionTile(
+        leading: Icon(icon, color: const Color(0xFF15A323)),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black), // Change text color here
+        ),
+        children: children,
+      ),
+    );
+  }
+
+  // Helper method for creating dropdowns
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required List<DropdownMenuItem<String>> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.black), // Change label text color here
+          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+        items: items,
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  // Fetch associated quiz when a story is selected
+  void fetchAssociatedQuiz(String? storyId) {
+    FirebaseFirestore.instance
+        .collection('Quizzes')
+        .where('storyId', isEqualTo: storyId)
+        .where('teacherId', isEqualTo: widget.teacherId)
+        .get()
+        .then((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        setState(() {
+          selectedQuiz = snapshot.docs.first.id;
+        });
+      }
+    });
+  }
+
+  // Function to assign the selected story and quiz to the selected students
+  void assignQuizToStudents() {
+    if (selectedStory == null || selectedQuiz == null || selectedStudents.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a story, quiz, and students to assign.'),
+        ),
+      );
+      return;
+    }
+
+    for (var studentId in selectedStudents) {
+      FirebaseFirestore.instance.collection('AssignedQuizzes').add({
+        'studentId': studentId,
+        'storyId': selectedStory,
+        'quizId': selectedQuiz,
+        'teacherId': widget.teacherId,
+        'assignedAt': Timestamp.now(),
+      });
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Assigned quiz to selected students.'),
+      ),
+    );
+
+    Navigator.of(context).pop();
   }
 }

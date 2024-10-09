@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:reading_comprehension/teacher/teacher_instruction.dart';
-import 'package:reading_comprehension/teacher/teacher_profile.dart'; // Import the Instruction page
+import 'package:reading_comprehension/teacher/teacher_profile.dart';
 
 class TeacherDrawer extends StatefulWidget {
   final String teacherId;
@@ -16,6 +16,7 @@ class _TeacherDrawerState extends State<TeacherDrawer> {
   String firstName = '';
   String lastName = '';
   bool isLoading = true;
+  bool isLoggingOut = false;
 
   @override
   void initState() {
@@ -49,6 +50,21 @@ class _TeacherDrawerState extends State<TeacherDrawer> {
     }
   }
 
+  Future<void> _logOut() async {
+    setState(() {
+      isLoggingOut = true;
+    });
+
+    // Simulate a delay to mimic log-out process
+    await Future.delayed(const Duration(seconds: 2));
+
+    setState(() {
+      isLoggingOut = false;
+    });
+
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Drawer(
@@ -73,12 +89,15 @@ class _TeacherDrawerState extends State<TeacherDrawer> {
                           foregroundImage: AssetImage("assets/images/default_profile.png"),
                         ),
                         const SizedBox(height: 10),
-                        Text(
-                          "$firstName $lastName",
-                          style: const TextStyle(
-                            fontSize: 21,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            "$firstName $lastName",
+                            style: const TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                         const Text(
@@ -100,15 +119,14 @@ class _TeacherDrawerState extends State<TeacherDrawer> {
               Navigator.pop(context);
             },
           ),
-           ListTile(
+          ListTile(
             leading: const Icon(Icons.person),
             title: const Text("Profile"),
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const TeacherProfilePage()),
-                
-                );
+              );
             },
           ),
           ListTile(
@@ -119,7 +137,6 @@ class _TeacherDrawerState extends State<TeacherDrawer> {
                 context,
                 MaterialPageRoute(builder: (context) => const TeacherInstructionPage()),
               );
-              
             },
           ),
           const SizedBox(
@@ -128,10 +145,14 @@ class _TeacherDrawerState extends State<TeacherDrawer> {
           const Divider(thickness: 1, color: Colors.black),
           ListTile(
             leading: const Icon(Icons.logout),
-            title: const Text("Log Out"),
-            onTap: () {
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
+            title: isLoggingOut
+                ? const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                  )
+                : const Text("Log Out"),
+            onTap: isLoggingOut ? null : _logOut,
+            tileColor: Colors.transparent,
+            textColor: Colors.black,
           ),
         ],
       ),

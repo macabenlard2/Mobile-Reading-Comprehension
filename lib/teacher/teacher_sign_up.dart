@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:reading_comprehension/widgets/background.dart'; // Import the Background widget
 import 'package:reading_comprehension/utils/code_generator.dart';  // Import the code generator
+import 'package:reading_comprehension/teacher/teacher_login.dart'; // Import the TeacherLogin page
 
 class SignUpTeacher extends StatefulWidget {
   const SignUpTeacher({super.key});
@@ -26,11 +27,33 @@ class _SignUpTeacherState extends State<SignUpTeacher> {
   @override
   void initState() {
     super.initState();
+
     _emailController.addListener(_validateInputs);
     _passwordController.addListener(_validateInputs);
     _confirmPasswordController.addListener(_validateInputs);
     _firstNameController.addListener(_validateInputs);
     _lastNameController.addListener(_validateInputs);
+
+    // Automatically capitalize the first letter of the first name and last name
+    _firstNameController.addListener(() {
+      String text = _firstNameController.text;
+      if (text.isNotEmpty && text[0] != text[0].toUpperCase()) {
+        _firstNameController.value = _firstNameController.value.copyWith(
+          text: text[0].toUpperCase() + text.substring(1),
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+      }
+    });
+
+    _lastNameController.addListener(() {
+      String text = _lastNameController.text;
+      if (text.isNotEmpty && text[0] != text[0].toUpperCase()) {
+        _lastNameController.value = _lastNameController.value.copyWith(
+          text: text[0].toUpperCase() + text.substring(1),
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+      }
+    });
   }
 
   @override
@@ -116,7 +139,12 @@ class _SignUpTeacherState extends State<SignUpTeacher> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Registration successful! Welcome!'),
       ));
-      Navigator.pop(context);
+
+      // Navigate to TeacherLogin page and remove all previous pages from the stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LogInTeacher()),
+        (route) => false,
+      );
 
     } catch (e) {
       setState(() {
@@ -169,7 +197,7 @@ class _SignUpTeacherState extends State<SignUpTeacher> {
                     "Teacher Registration",
                     style: TextStyle(
                       fontSize: 25,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),

@@ -14,6 +14,8 @@ class EditQuizScreen extends StatefulWidget {
 
 class _EditQuizScreenState extends State<EditQuizScreen> {
   List<Map<String, dynamic>> _questions = [];
+  List<TextEditingController> _questionControllers = [];
+  List<List<TextEditingController>> _answerControllers = [];
   String? _quizTitle;
   bool _isLoading = false;
 
@@ -23,60 +25,118 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
     _loadQuizData();
   }
 
-  Future<void> _loadQuizData() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      DocumentSnapshot quizSnapshot = await FirebaseFirestore.instance
-          .collection('Quizzes')
-          .doc(widget.quizId)
-          .get();
-
-      if (quizSnapshot.exists) {
-        setState(() {
-          _quizTitle = quizSnapshot['title'];
-          _questions = List<Map<String, dynamic>>.from(quizSnapshot['questions'] as List);
-          _isLoading = false;
-        });
+  @override
+  void dispose() {
+    for (var controller in _questionControllers) {
+      controller.dispose();
+    }
+    for (var answerList in _answerControllers) {
+      for (var controller in answerList) {
+        controller.dispose();
       }
-    } catch (e) {
+    }
+    super.dispose();
+  }
+
+  Future<void> _loadQuizData() async {
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    DocumentSnapshot quizSnapshot = await FirebaseFirestore.instance
+        .collection('Quizzes')
+        .doc(widget.quizId)
+        .get();
+
+    if (quizSnapshot.exists) {
+      final data = quizSnapshot.data() as Map<String, dynamic>?;
+
+      setState(() {
+        _quizTitle = data?['title'] ?? 'Untitled Quiz';
+        _questions = (data?['questions'] as List<dynamic>? ?? []).map((question) {
+          return {
+            'question': question['question'] ?? '',
+            'answers': Map<String, String>.from(question['answers'] ?? {}),
+            'correctAnswer': question['correctAnswer'] ?? 'A',
+          };
+        }).toList();
+
+        _questionControllers = _questions.map((q) => TextEditingController(text: q['question'])).toList();
+
+        _answerControllers = _questions.map((q) {
+          final answers = Map<String, String>.from(q['answers'] ?? {});
+          return answers.values.map((a) => TextEditingController(text: a)).toList();
+        }).toList();
+
+        _isLoading = false;
+      });
+    } else {
       setState(() {
         _isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load quiz: $e')),
+        const SnackBar(content: Text('Quiz not found')),
       );
     }
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to load quiz: $e')),
+    );
   }
+}
+
 
   void _addQuestion() {
     setState(() {
-      _questions.add({
+      Map<String, dynamic> newQuestion = {
         'question': '',
         'answers': {'A': '', 'B': '', 'C': ''},
         'correctAnswer': 'A',
-      });
+      };
+      _questions.add(newQuestion);
+
+      _questionControllers.add(TextEditingController());
+      _answerControllers.add([
+        TextEditingController(),
+        TextEditingController(),
+        TextEditingController(),
+      ]);
     });
   }
 
   void _addAnswer(int questionIndex) {
     setState(() {
       final answers = _questions[questionIndex]['answers'] as Map<String, String>;
-      final newKey = String.fromCharCode(65 + answers.length); // Generate keys A, B, C, D, etc.
+      final newKey = String.fromCharCode(65 + answers.length);
       answers[newKey] = '';
+
+      _answerControllers[questionIndex].add(TextEditingController());
     });
   }
 
   void _removeAnswer(int questionIndex, String answerKey) {
     setState(() {
       final answers = _questions[questionIndex]['answers'] as Map<String, String>;
+      final answerKeys = answers.keys.toList();
+      final answerIndex = answerKeys.indexOf(answerKey);
+
       if (answers.length > 3) {
         answers.remove(answerKey);
+
+        _answerControllers[questionIndex][answerIndex].dispose();
+        _answerControllers[questionIndex].removeAt(answerIndex);
+
         if (_questions[questionIndex]['correctAnswer'] == answerKey) {
           _questions[questionIndex]['correctAnswer'] = answers.keys.first;
         }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('A question must have at least 3 answers')),
+        );
       }
     });
   }
@@ -104,7 +164,14 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
 
     if (confirmDelete) {
       setState(() {
+        _questionControllers[index].dispose();
+        for (var controller in _answerControllers[index]) {
+          controller.dispose();
+        }
+
         _questions.removeAt(index);
+        _questionControllers.removeAt(index);
+        _answerControllers.removeAt(index);
       });
 
       try {
@@ -124,7 +191,12 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
 
   void _clearAnswer(int questionIndex, String answerKey) {
     setState(() {
-      _questions[questionIndex]['answers'][answerKey] = '';
+      final answers = _questions[questionIndex]['answers'] as Map<String, String>;
+      final answerKeys = answers.keys.toList();
+      final answerIndex = answerKeys.indexOf(answerKey);
+
+      answers[answerKey] = '';
+      _answerControllers[questionIndex][answerIndex].text = '';
     });
   }
 
@@ -134,6 +206,16 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
     });
 
     try {
+      for (int i = 0; i < _questions.length; i++) {
+        _questions[i]['question'] = _questionControllers[i].text;
+
+        final answers = _questions[i]['answers'] as Map<String, String>;
+        final answerKeys = answers.keys.toList();
+        for (int j = 0; j < answerKeys.length; j++) {
+          answers[answerKeys[j]] = _answerControllers[i][j].text;
+        }
+      }
+
       await FirebaseFirestore.instance.collection('Quizzes').doc(widget.quizId).update({
         'questions': _questions,
       });
@@ -223,9 +305,9 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
   }
 
   Widget _buildQuestionCard(int index) {
-    final String questionText = _questions[index]['question'] ?? '';
     final Map<String, String> answers = Map<String, String>.from(_questions[index]['answers']);
     final String correctAnswer = _questions[index]['correctAnswer'] ?? 'A';
+    final answerKeys = answers.keys.toList();
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 10),
@@ -238,15 +320,13 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
               children: [
                 Expanded(
                   child: TextField(
-                    onChanged: (value) => _updateQuestionText(index, value),
+                    onChanged: (value) {},
                     decoration: const InputDecoration(
                       labelText: 'Question',
                       labelStyle: TextStyle(fontWeight: FontWeight.bold),
                       border: OutlineInputBorder(),
                     ),
-                    controller: TextEditingController(
-                      text: questionText,
-                    ),
+                    controller: _questionControllers[index],
                   ),
                 ),
                 IconButton(
@@ -257,7 +337,10 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
             ),
             const SizedBox(height: 10),
             Column(
-              children: answers.keys.map((answerKey) => _buildAnswerRow(index, answerKey, answers, correctAnswer)).toList(),
+              children: List.generate(answers.length, (answerIndex) {
+                String answerKey = answerKeys[answerIndex];
+                return _buildAnswerRow(index, answerIndex, answerKey, correctAnswer);
+              }),
             ),
             const SizedBox(height: 10),
             Row(
@@ -268,15 +351,15 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
                   icon: const Icon(Icons.add),
                   label: const Text('Add Answer'),
                   style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 8), // Adjust padding
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: answers.length > 3 ? () => _removeAnswer(index, answers.keys.last) : null,
+                  onPressed: answers.length > 3 ? () => _removeAnswer(index, answerKeys.last) : null,
                   icon: const Icon(Icons.remove),
                   label: const Text('Remove Answer'),
                   style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 8), // Adjust padding
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
                 ),
               ],
@@ -287,33 +370,31 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
     );
   }
 
-  Widget _buildAnswerRow(int index, String answerKey, Map<String, String> answers, String correctAnswer) {
+  Widget _buildAnswerRow(int questionIndex, int answerIndex, String answerKey, String correctAnswer) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
           Expanded(
             child: TextField(
-              onChanged: (value) => _updateAnswerText(index, answerKey, value),
+              onChanged: (value) {},
               decoration: InputDecoration(
                 labelText: 'Answer $answerKey',
                 border: const OutlineInputBorder(),
               ),
-              controller: TextEditingController(
-                text: answers[answerKey]!,
-              ),
+              controller: _answerControllers[questionIndex][answerIndex],
             ),
           ),
           const SizedBox(width: 10),
           Radio<String>(
             value: answerKey,
             groupValue: correctAnswer,
-            onChanged: (value) => _updateCorrectAnswer(index, value),
+            onChanged: (value) => _updateCorrectAnswer(questionIndex, value),
           ),
           const Text('Correct'),
           IconButton(
             icon: const Icon(Icons.clear, color: Colors.orange),
-            onPressed: () => _clearAnswer(index, answerKey),
+            onPressed: () => _clearAnswer(questionIndex, answerKey),
           ),
         ],
       ),
@@ -340,21 +421,9 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
     );
   }
 
-  void _updateQuestionText(int index, String value) {
+  void _updateCorrectAnswer(int questionIndex, String? value) {
     setState(() {
-      _questions[index]['question'] = value;
-    });
-  }
-
-  void _updateAnswerText(int index, String answerKey, String value) {
-    setState(() {
-      _questions[index]['answers'][answerKey] = value;
-    });
-  }
-
-  void _updateCorrectAnswer(int index, String? value) {
-    setState(() {
-      _questions[index]['correctAnswer'] = value!;
+      _questions[questionIndex]['correctAnswer'] = value!;
     });
   }
 }

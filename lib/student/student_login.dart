@@ -96,7 +96,7 @@ class _LogInStudentState extends State<LogInStudent> {
                   child: const Text(
                     "Welcome Back, Student!",
                     style: TextStyle(
-                      fontSize: 30,
+                      fontSize: 28,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

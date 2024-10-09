@@ -27,8 +27,15 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
     }
 
     try {
-      // Add the story to Firestore with the teacherId, type, set, and grade level
-      DocumentReference storyRef = await FirebaseFirestore.instance.collection('Stories').add({
+      // Log to see if the function is called
+      print('Adding story...');
+
+      // Add the story to the teacher-specific subcollection
+      DocumentReference storyRef = await FirebaseFirestore.instance
+          .collection('Teachers')
+          .doc(widget.teacherId)
+          .collection('TeacherStories') // Collection for individual teacher stories
+          .add({
         'title': _titleController.text,
         'content': _contentController.text,
         'teacherId': widget.teacherId,
@@ -38,8 +45,14 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
         'createdAt': Timestamp.now(),
       });
 
-      // Automatically create a corresponding quiz for the story
-      await FirebaseFirestore.instance.collection('Quizzes').add({
+      print('Story added with ID: ${storyRef.id}');
+
+      // Automatically create a corresponding quiz for the story in the teacher-specific subcollection
+      await FirebaseFirestore.instance
+          .collection('Teachers')
+          .doc(widget.teacherId)
+          .collection('TeacherQuizzes') // Collection for individual teacher quizzes
+          .add({
         'title': _titleController.text,
         'storyId': storyRef.id,
         'teacherId': widget.teacherId,
@@ -47,6 +60,7 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
         'set': _selectedSet, // Set the selected set for quiz
         'gradeLevel': _selectedGradeLevel, // Set the selected grade level for quiz
         'questions': [], // Placeholder for questions
+        'createdAt': Timestamp.now(),
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,6 +72,7 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to add story and quiz: $e')),
       );
+      print('Error adding story: $e');
     }
   }
 
@@ -77,11 +92,8 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
         centerTitle: true,
         automaticallyImplyLeading: true,
         leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Navigator.of(context).pop(),
-
-
-
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: Background(

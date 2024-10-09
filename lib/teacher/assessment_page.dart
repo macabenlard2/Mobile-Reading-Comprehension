@@ -22,6 +22,8 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
 
   String? selectedSet;
   String? selectedGradeLevel;
+  String sortOrder = 'Ascending'; // or 'Descending'
+  String searchQuery = '';
 
   @override
   void initState() {
@@ -75,13 +77,15 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                 Tab(text: 'Custom'),
                 Tab(text: 'Posttest'),
               ],
-              indicatorColor: Colors.white,
+              indicatorColor: Colors.yellow,
               labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              labelColor: Colors.yellow,
+              unselectedLabelColor: Colors.white,
             ),
           ),
           body: Column(
             children: [
-              _buildFilterSection(),
+              _buildFilterBar(), // Unified filter bar with search
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
@@ -92,7 +96,7 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                   ],
                 ),
               ),
-              _buildBottomSection(), // Added bottom section for add and assign buttons
+              _buildBottomSection(),
             ],
           ),
         ),
@@ -101,14 +105,17 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
   }
 
   Widget _buildNavigationTab({required String label, required Color color, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 25,
-          fontWeight: FontWeight.bold,
-          color: color,
+    return Flexible(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 25,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
@@ -118,108 +125,243 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
     return Container(
       width: 2,
       height: 20,
-      margin: const EdgeInsets.symmetric(horizontal: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 8),
       color: Colors.white,
     );
   }
 
-  Widget _buildFilterSection() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
+  Widget _buildFilterBar() {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.5),
+            spreadRadius: 1,
+            blurRadius: 5,
+            offset: Offset(0, 2), // Shadow position
+          ),
+        ],
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          DropdownButton<String>(
-            value: selectedSet,
-            hint: const Text('Select Set'),
-            items: ['A', 'B', 'C', 'D'].map((set) {
-              return DropdownMenuItem(
-                value: set,
-                child: Text(set),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                selectedSet = value;
-              });
-            },
+          Expanded(
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search by title',
+                border: InputBorder.none,
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value.toLowerCase();
+                });
+              },
+            ),
           ),
-          DropdownButton<String>(
-            value: selectedGradeLevel,
-            hint: const Text('Select Grade Level'),
-            items: ['Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].map((grade) {
-              return DropdownMenuItem(
-                value: grade,
-                child: Text(grade),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                selectedGradeLevel = value;
-              });
-            },
+          IconButton(
+            tooltip: 'Filter & Sort',
+            icon: Icon(Icons.filter_list, color: Colors.green),
+            onPressed: () => _showFilterOptions(context),
           ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                selectedSet = null;
-                selectedGradeLevel = null;
-              });
-            },
-            child: const Text('Clear'),
+          IconButton(
+            tooltip: 'Clear Filters',
+            icon: Icon(Icons.restart_alt_sharp, color: Colors.redAccent),
+            onPressed: _clearFilters,
           ),
         ],
       ),
     );
   }
 
+  void _clearFilters() {
+    setState(() {
+      selectedSet = null;
+      selectedGradeLevel = null;
+      sortOrder = 'Ascending';
+      searchQuery = '';
+    });
+  }
+
   Widget _buildStoryListView(String testType) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('Stories')
-          .where('teacherId', isEqualTo: widget.teacherId)
-          .where('type', isEqualTo: testType)
-          .where('set', isEqualTo: selectedSet)
-          .where('gradeLevel', isEqualTo: selectedGradeLevel)
-          .snapshots(),
-      builder: (context, snapshot) {
+    // Query for shared stories
+    Query sharedQuery = FirebaseFirestore.instance
+        .collection('Stories')
+        .where('type', isEqualTo: testType);
+
+    // Query for teacher-specific stories
+    Query teacherQuery = FirebaseFirestore.instance
+        .collection('Teachers')
+        .doc(widget.teacherId)
+        .collection('TeacherStories')
+        .where('type', isEqualTo: testType);
+
+    // If filters are applied, modify the queries
+    if (selectedSet != null && selectedSet!.isNotEmpty) {
+      sharedQuery = sharedQuery.where('set', isEqualTo: selectedSet);
+      teacherQuery = teacherQuery.where('set', isEqualTo: selectedSet);
+    }
+
+    if (selectedGradeLevel != null && selectedGradeLevel!.isNotEmpty) {
+      sharedQuery = sharedQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
+      teacherQuery = teacherQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
+    }
+
+    var order = sortOrder == 'Ascending' ? false : true;
+    sharedQuery = sharedQuery.orderBy('title', descending: order);
+    teacherQuery = teacherQuery.orderBy('title', descending: order);
+
+    // Combine the two queries using Future.wait to await both queries
+    return FutureBuilder(
+      future: Future.wait([sharedQuery.get(), teacherQuery.get()]),
+      builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
         if (snapshot.hasError) {
-          return Center(
-            child: Text('Error: ${snapshot.error}'),
-          );
+          return Center(child: Text('Error: ${snapshot.error}'));
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(
-            child: Text('No data found'),
-          );
+        // Combine the documents from both shared and teacher stories
+        var sharedStories = snapshot.data![0].docs;
+        var teacherStories = snapshot.data![1].docs;
+
+        var allStories = sharedStories + teacherStories;
+
+        if (allStories.isEmpty) {
+          return const Center(child: Text('No data found'));
         }
 
-        var stories = snapshot.data!.docs;
+        // Apply search filter
+        var filteredStories = allStories.where((story) {
+          var data = story.data() as Map<String, dynamic>;
+          var title = data['title']?.toLowerCase() ?? '';
+          return title.contains(searchQuery);
+        }).toList();
 
         return ListView.builder(
-          itemCount: stories.length,
+          itemCount: filteredStories.length,
           itemBuilder: (context, index) {
-            var data = stories[index].data() as Map<String, dynamic>;
+            var data = filteredStories[index].data() as Map<String, dynamic>;
             var title = data['title'] ?? 'Untitled';
             var gradeLevel = data['gradeLevel'] ?? 'N/A';
             var set = data['set'] ?? 'N/A';
 
             return ListTile(
               title: Text(
-                '$title',
-                style: const TextStyle(fontSize: 16),
+                title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               subtitle: Text('Grade Level: $gradeLevel, Set: $set'),
               onTap: () {
-                _navigateToStoryDetail(title);
+                _navigateToStoryDetail(filteredStories[index].id, data['title'], data['content'], teacherStories.contains(filteredStories[index]));
               },
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showFilterOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext bc) {
+        return Container(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text('Filter & Sort Options', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedSet,
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.filter_list),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                ),
+                items: ['A', 'B', 'C', 'D'].map((set) {
+                  return DropdownMenuItem(
+                    value: set,
+                    child: Text(set, style: TextStyle(fontSize: 14)),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedSet = value;
+                  });
+                },
+              ),
+              SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedGradeLevel,
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.school),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                ),
+                items: ['2', '3', '4', '5', '6'].map((grade) {
+                  return DropdownMenuItem(
+                    value: grade,
+                    child: Text(grade, style: TextStyle(fontSize: 14)),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedGradeLevel = value;
+                  });
+                },
+              ),
+              SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: sortOrder,
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.sort),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                ),
+                items: ['Ascending', 'Descending'].map((order) {
+                  return DropdownMenuItem(
+                    value: order,
+                    child: Text(order, style: TextStyle(fontSize: 14)),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    sortOrder = value!;
+                  });
+                },
+              ),
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: Text(
+                  'Apply',
+                  style: TextStyle(color: Colors.black),  // Font color set to black
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -241,19 +383,24 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                   ),
                 );
               },
-              icon: const Icon(Icons.add),
-              label: const Text('Add Passage'),
+              icon: const Icon(Icons.add, color: Colors.black),
+              label: const Text(
+                'Add Passage',
+                style: TextStyle(color: Colors.black),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 16), // Space between the two buttons
+          const SizedBox(width: 16),
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () {
-                // Navigate to the AssignStoryQuizPage
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -261,11 +408,17 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                   ),
                 );
               },
-              icon: const Icon(Icons.assignment),
-              label: const Text('Assign Passage'),
+              icon: const Icon(Icons.assignment, color: Colors.black),
+              label: const Text(
+                'Assign Passage',
+                style: TextStyle(color: Colors.black),
+              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+                backgroundColor: Colors.yellow,
                 padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
               ),
             ),
           ),
@@ -274,25 +427,17 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
     );
   }
 
-  void _navigateToStoryDetail(String title) {
-    FirebaseFirestore.instance
-        .collection('Stories')
-        .where('title', isEqualTo: title)
-        .get()
-        .then((querySnapshot) {
-      if (querySnapshot.docs.isNotEmpty) {
-        var doc = querySnapshot.docs.first;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => StoryDetailPage(
-              docId: doc.id,
-              title: doc['title'],
-              content: doc['content'],
-            ),
-          ),
-        );
-      }
-    });
+  void _navigateToStoryDetail(String docId, String title, String content, bool isTeacherStory) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StoryDetailPage(
+          docId: docId,
+          title: title,
+          content: content,
+          isTeacherStory: isTeacherStory, // Pass this flag to indicate teacher-specific stories
+        ),
+      ),
+    );
   }
 }

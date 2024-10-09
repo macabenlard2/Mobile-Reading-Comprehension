@@ -1,5 +1,10 @@
 package com.example.reading_comprehension
 
-import io.flutter.embedding.android.FlutterActivity
+import android.app.Application
 
-class MainActivity: FlutterActivity()
+class MainApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        // Initialize any libraries or perform other application-level setup here
+    }
+}

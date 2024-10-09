@@ -20,8 +20,8 @@
             children: [
               const SizedBox(height: 50),
               SizedBox(
-                height: 200,
-                width: 200,
+                height: 300,
+                width: 400,
                 child: Image.asset(
                   "assets/images/logo.png",
                   fit: BoxFit.fill,
@@ -29,9 +29,9 @@
               ),
               const SizedBox(height: 1.0),
               const Text(
-                "Welcome Onboard!",
+                "Welcome Onboard! SignUp",
                 style: TextStyle(
-                  fontSize: 35,
+                  fontSize: 25,
                   fontWeight: FontWeight.w700,
                   color: Color.fromARGB(255, 0, 0, 0),
                 ),

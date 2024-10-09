@@ -48,56 +48,49 @@ class MyHomePage extends StatelessWidget {
               ),
             ),
           ),
-          SingleChildScrollView(
+          Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 50),
                 Image.asset(
                   "assets/images/logo.png",
-                  height: 300,
-                  width: 400,
+                  height: 300, // Adjusted height
+                  width: 400,  // Adjusted width
                   fit: BoxFit.fill,
                 ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Welcome to CISC KIDS APP!",
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.lexendDeca(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 23,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      "Mobile Reading Comprehension",
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.lexendDeca(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 20), // Adjusted spacing
+                Text(
+                  "Welcome to CISC KIDS APP!",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.lexendDeca(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 23,
+                  ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(30),
-                  width: double.infinity,
-                  child: Center(
-                    child: Text(
-                      "We believe in the power of education to transform lives. Our mission is to empower learners and educators through innovative assessments that foster meaningful learning. Assessment is not just about testing it's about understanding, growth, and continuous improvement.",
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.lexendDeca(
-                        fontWeight: FontWeight.w300,
-                        fontSize: 20,
-                      ),
+                const SizedBox(height: 10),
+                Text(
+                  "Mobile Reading Comprehension",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.lexendDeca(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
+                  child: Text(
+                    "We believe in the power of education to transform lives. Our mission is to empower learners and educators through innovative assessments that foster meaningful learning. Assessment is not just about testing it's about understanding, growth, and continuous improvement.",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.lexendDeca(
+                      fontWeight: FontWeight.w300,
+                      fontSize: 18,
                     ),
                   ),
                 ),
+                const SizedBox(height: 30), // Adjusted spacing
                 Container(
-                  margin: const EdgeInsets.only(top: 0),
                   height: 50,
                   width: 300,
                   decoration: BoxDecoration(
@@ -117,13 +110,12 @@ class MyHomePage extends StatelessWidget {
                       "GET STARTED",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 25,
+                        fontSize: 20, // Adjusted font size
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
               ],
             ),
           ),

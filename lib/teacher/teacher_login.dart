@@ -93,7 +93,7 @@ class _LogInTeacherState extends State<LogInTeacher> {
                   child: const Text(
                     "Welcome Back, Teacher!",
                     style: TextStyle(
-                      fontSize: 30,
+                      fontSize: 29,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

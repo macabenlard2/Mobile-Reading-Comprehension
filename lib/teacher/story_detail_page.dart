@@ -4,16 +4,17 @@ import 'package:reading_comprehension/widgets/background_reading.dart';
 
 class StoryDetailPage extends StatefulWidget {
   final String docId;
+  final String title;
+  final String content;
+  final bool isTeacherStory; // Flag to differentiate between shared and teacher-specific stories
 
   const StoryDetailPage({
     super.key,
     required this.docId,
     required this.title,
     required this.content,
+    required this.isTeacherStory,
   });
-
-  final String title;
-  final String content;
 
   @override
   _StoryDetailPageState createState() => _StoryDetailPageState();
@@ -46,8 +47,11 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
 
     try {
       if (widget.docId.isNotEmpty) {
+        // Determine the collection based on whether it's a teacher-specific story or shared story
+        String collectionPath = widget.isTeacherStory ? 'TeacherStories' : 'Stories';
+
         // Update the story title and content
-        await FirebaseFirestore.instance.collection('Stories').doc(widget.docId).update({
+        await FirebaseFirestore.instance.collection(collectionPath).doc(widget.docId).update({
           'title': titleController.text,
           'content': contentController.text,
         });
@@ -95,31 +99,23 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          
-          'Story Details', style: TextStyle(
-           color: Colors.white,
-           fontSize: 20,
-           fontWeight: FontWeight.bold,
+          'Story Details',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
-         
-        
-        
-        
         ),
         centerTitle: true,
         backgroundColor: const Color(0xFF15A323), // Green color for the AppBar
         automaticallyImplyLeading: true,
-         leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Navigator.of(context).pop(),
-
-
-
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete, color: Colors.white,),
+            icon: const Icon(Icons.delete, color: Colors.white),
             onPressed: deleteStory,
           ),
         ],
@@ -129,7 +125,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
           children: [
             StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('Stories')
+                  .collection(widget.isTeacherStory ? 'TeacherStories' : 'Stories') // Collection based on isTeacherStory
                   .doc(widget.docId)
                   .snapshots(),
               builder: (context, snapshot) {
@@ -138,7 +134,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 }
 
                 if (!snapshot.hasData || !snapshot.data!.exists) {
-                  return const Center(child: Text('Deleting Process'));
+                  return const Center(child: Text('Story not found or already deleted'));
                 }
 
                 var storyData = snapshot.data!;
@@ -233,9 +229,12 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
 
       try {
         if (widget.docId.isNotEmpty) {
+          // Determine the collection path based on isTeacherStory flag
+          String collectionPath = widget.isTeacherStory ? 'TeacherStories' : 'Stories';
+
           // Delete the story
-          await FirebaseFirestore.instance.collection('Stories').doc(widget.docId).delete();
-          
+          await FirebaseFirestore.instance.collection(collectionPath).doc(widget.docId).delete();
+
           // Delete the associated quiz
           var quizSnapshot = await FirebaseFirestore.instance
               .collection('Quizzes')

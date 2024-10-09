@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:reading_comprehension/widgets/background.dart';
+import 'package:reading_comprehension/student/student_login.dart'; // Import the StudentLogin page
+import 'package:flutter/services.dart'; // Import for TextInputFormatter
 
 class SignUpStudent extends StatefulWidget {
   const SignUpStudent({super.key});
@@ -31,6 +33,27 @@ class _SignUpStudentState extends State<SignUpStudent> {
   void initState() {
     super.initState();
     _addListeners();
+
+    // Listen to changes in the first name and last name controllers to capitalize the first letter
+    _firstNameController.addListener(() {
+      String text = _firstNameController.text;
+      if (text.isNotEmpty && text[0] != text[0].toUpperCase()) {
+        _firstNameController.value = _firstNameController.value.copyWith(
+          text: text[0].toUpperCase() + text.substring(1),
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+      }
+    });
+
+    _lastNameController.addListener(() {
+      String text = _lastNameController.text;
+      if (text.isNotEmpty && text[0] != text[0].toUpperCase()) {
+        _lastNameController.value = _lastNameController.value.copyWith(
+          text: text[0].toUpperCase() + text.substring(1),
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+      }
+    });
   }
 
   @override
@@ -61,17 +84,19 @@ class _SignUpStudentState extends State<SignUpStudent> {
     });
 
     try {
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
-
+      // Validate teacher code before creating the user
       final teacherDoc = await FirebaseFirestore.instance
           .collection('Teachers')
           .doc(_selectedTeacherId)
           .get();
 
       if (teacherDoc.exists && teacherDoc['teacherCode'] == _teacherCodeController.text) {
+        // Proceed with user creation only if the teacher code is valid
+        final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+
         await FirebaseFirestore.instance.collection('Students').doc(userCredential.user!.uid).set({
           'firstName': _firstNameController.text,
           'lastName': _lastNameController.text,
@@ -85,10 +110,15 @@ class _SignUpStudentState extends State<SignUpStudent> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Successfully registered!')),
         );
-        Navigator.pop(context);
+
+        // Navigate to StudentLogin page with a loading effect
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LogInStudent()), // Replace with your actual login page
+          (route) => false,
+        );
       } else {
         setState(() {
-          _errorMessage = 'Invalid teacher code.';
+          _errorMessage = 'Invalid teacher code. Please check and try again.';
         });
       }
     } catch (e) {
@@ -115,7 +145,7 @@ class _SignUpStudentState extends State<SignUpStudent> {
           _selectedGender != null && // Check if gender is selected
           _scoreController.text.isNotEmpty;
 
-      bool isTeacherCodeValid = _teacherCodeController.text.length >= 6;
+      bool isTeacherCodeValid = _teacherCodeController.text.length == 6; // Ensure code length is exactly 6
       bool arePasswordsMatching = _passwordController.text == _confirmPasswordController.text;
 
       if (isFieldsNotEmpty && isTeacherCodeValid && arePasswordsMatching) {
@@ -124,7 +154,7 @@ class _SignUpStudentState extends State<SignUpStudent> {
       } else {
         _isButtonDisabled = true;
         if (!isTeacherCodeValid) {
-          _errorMessage = 'Teacher code must be at least 6 characters long.';
+          _errorMessage = 'Teacher code must be exactly 6 characters long.';
         } else if (!arePasswordsMatching) {
           _errorMessage = 'Passwords do not match.';
         } else {
@@ -148,7 +178,7 @@ class _SignUpStudentState extends State<SignUpStudent> {
               const Text(
                 "Create Your Account",
                 style: TextStyle(
-                  fontSize: 30,
+                  fontSize: 29,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -209,7 +239,7 @@ class _SignUpStudentState extends State<SignUpStudent> {
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 hint: const Text("Select Gender"), // Gender dropdown
-                items: <String>['Male', 'Female',].map((String value) {
+                items: <String>['Male', 'Female'].map((String value) {
                   return DropdownMenuItem<String>(
                     value: value,
                     child: Text(value),
@@ -225,12 +255,22 @@ class _SignUpStudentState extends State<SignUpStudent> {
               const SizedBox(height: 20),
               TextFormField(
                 controller: _teacherCodeController,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
+                  LengthLimitingTextInputFormatter(6), // Limit to 6 characters
+                ],
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.code),
                   labelText: "Teacher Code",
                   border: OutlineInputBorder(),
                 ),
-                onChanged: (_) => _validateInputs(),
+                onChanged: (value) {
+                  _teacherCodeController.value = _teacherCodeController.value.copyWith(
+                    text: value.toUpperCase(),
+                    selection: TextSelection.collapsed(offset: value.length),
+                  );
+                  _validateInputs();
+                },
               ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(

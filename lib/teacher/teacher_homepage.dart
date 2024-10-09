@@ -109,18 +109,34 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
       },
       child: Background(
         child: Scaffold(
-          appBar: AppBar(
-            title: const Text(
-              'Home Page',
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+           appBar: AppBar(
+            backgroundColor: const Color(0xFF15A323),
+            elevation: 4,  
+            centerTitle: true,
+            title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+            SizedBox(
+            width: MediaQuery.of(context).size.width * 0.3,  
+            child: Image.asset(
+            "assets/images/appbar.png",  
+            fit: BoxFit.contain,  
               ),
             ),
-            backgroundColor: const Color(0xFF15A323),
-            centerTitle: true,
-          ),
+              ],
+           ),
+              actions: [
+              IconButton(
+              icon: const Icon(Icons.settings, color: Colors.black),
+              onPressed: () {
+
+            },
+           tooltip: 'Settings',
+            ),
+             ],
+),
+
+
           drawer: TeacherDrawer(teacherId: teacherId),
           body: Column(
             children: [
