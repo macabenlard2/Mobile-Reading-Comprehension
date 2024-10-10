@@ -118,32 +118,6 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
     );
   }
 
-  Widget _buildNavigationTab({required String label, required Color color, required VoidCallback onTap}) {
-    return Flexible(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 25,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVerticalDivider() {
-    return Container(
-      width: 2,
-      height: 20,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: Colors.white,
-    );
-  }
-
   Widget _buildFilterBar() {
     return Container(
       padding: const EdgeInsets.all(8),
@@ -156,7 +130,7 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
             color: Colors.grey.withOpacity(0.5),
             spreadRadius: 1,
             blurRadius: 5,
-            offset: Offset(0, 2), // Shadow position
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -201,19 +175,16 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
   }
 
   Widget _buildQuizListView(String quizType) {
-    // Query for shared quizzes
     Query sharedQuery = FirebaseFirestore.instance
         .collection('Quizzes')
         .where('type', isEqualTo: quizType);
 
-    // Query for teacher-specific quizzes
     Query teacherQuery = FirebaseFirestore.instance
         .collection('Teachers')
         .doc(widget.teacherId)
         .collection('TeacherQuizzes')
         .where('type', isEqualTo: quizType);
 
-    // If filters are applied, modify the queries
     if (selectedSet != null && selectedSet!.isNotEmpty) {
       sharedQuery = sharedQuery.where('set', isEqualTo: selectedSet);
       teacherQuery = teacherQuery.where('set', isEqualTo: selectedSet);
@@ -228,12 +199,8 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
     sharedQuery = sharedQuery.orderBy('title', descending: order);
     teacherQuery = teacherQuery.orderBy('title', descending: order);
 
-    // Combine the two queries using Future.wait to await both queries
     return FutureBuilder(
-      future: Future.wait([
-        sharedQuery.get(),
-        teacherQuery.get(),
-      ]),
+      future: Future.wait([sharedQuery.get(), teacherQuery.get()]),
       builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
@@ -243,7 +210,6 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
           return const Center(child: CircularProgressIndicator());
         }
 
-        // Combine the documents from both shared and teacher quizzes
         var sharedQuizzes = snapshot.data![0].docs;
         var teacherQuizzes = snapshot.data![1].docs;
 
@@ -253,7 +219,6 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
           return const Center(child: Text('No quizzes available'));
         }
 
-        // Apply search filter
         var filteredQuizzes = allQuizzes.where((quiz) {
           var data = quiz.data() as Map<String, dynamic>;
           var title = data['title']?.toLowerCase() ?? '';
@@ -372,7 +337,7 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
                 },
                 child: Text(
                   'Apply',
-                  style: TextStyle(color: Colors.black),  // Font color set to black
+                  style: TextStyle(color: Colors.black),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,

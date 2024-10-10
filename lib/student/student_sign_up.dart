@@ -22,7 +22,7 @@ class _SignUpStudentState extends State<SignUpStudent> {
   final TextEditingController _scoreController = TextEditingController();
   String? _selectedTeacherId;
   String? _selectedGradeLevel;
-  String? _selectedGender; // Added gender field
+  String? _selectedGender;
   bool _isButtonDisabled = true;
   String? _errorMessage;
   bool _loading = false;
@@ -34,7 +34,7 @@ class _SignUpStudentState extends State<SignUpStudent> {
     super.initState();
     _addListeners();
 
-    // Listen to changes in the first name and last name controllers to capitalize the first letter
+    // Capitalize first letter in first and last names
     _firstNameController.addListener(() {
       String text = _firstNameController.text;
       if (text.isNotEmpty && text[0] != text[0].toUpperCase()) {
@@ -79,58 +79,155 @@ class _SignUpStudentState extends State<SignUpStudent> {
   }
 
   Future<void> signUp() async {
-    setState(() {
-      _loading = true;
-    });
+  setState(() {
+    _loading = true;
+  });
 
-    try {
-      // Validate teacher code before creating the user
-      final teacherDoc = await FirebaseFirestore.instance
-          .collection('Teachers')
-          .doc(_selectedTeacherId)
-          .get();
+  try {
+    // Validate teacher code before creating the user
+    final teacherDoc = await FirebaseFirestore.instance
+        .collection('Teachers')
+        .doc(_selectedTeacherId)
+        .get();
 
-      if (teacherDoc.exists && teacherDoc['teacherCode'] == _teacherCodeController.text) {
-        // Proceed with user creation only if the teacher code is valid
-        final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text,
-          password: _passwordController.text,
-        );
+    if (teacherDoc.exists && teacherDoc['teacherCode'] == _teacherCodeController.text) {
+      // Proceed with user creation only if the teacher code is valid
+      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
 
-        await FirebaseFirestore.instance.collection('Students').doc(userCredential.user!.uid).set({
-          'firstName': _firstNameController.text,
-          'lastName': _lastNameController.text,
-          'email': _emailController.text,
-          'gradeLevel': _selectedGradeLevel,
-          'gender': _selectedGender, // Added gender field to Firestore
-          'score': _scoreController.text,
-          'teacherId': _selectedTeacherId,
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Successfully registered!')),
-        );
-
-        // Navigate to StudentLogin page with a loading effect
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LogInStudent()), // Replace with your actual login page
-          (route) => false,
-        );
-      } else {
-        setState(() {
-          _errorMessage = 'Invalid teacher code. Please check and try again.';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Registration failed: ${e.toString()}';
+      // Register the student in Firestore
+      await FirebaseFirestore.instance.collection('Students').doc(userCredential.user!.uid).set({
+        'firstName': _firstNameController.text,
+        'lastName': _lastNameController.text,
+        'email': _emailController.text,
+        'gradeLevel': _selectedGradeLevel,
+        'gender': _selectedGender,
+        'score': _scoreController.text,
+        'teacherId': _selectedTeacherId,
       });
-    } finally {
+
+      // Automatically assign an assessment (Story and Quiz) based on screening score
+      int screeningScore = int.tryParse(_scoreController.text) ?? 0;
+      int gradeLevel = int.tryParse(_selectedGradeLevel ?? "0") ?? 0;
+
+      if (gradeLevel > 0) {
+        String assignedGradeLevel;
+
+        if (screeningScore >= 0 && screeningScore <= 7) {
+          assignedGradeLevel = (gradeLevel - 3).toString(); // 3 levels lower
+        } else if (screeningScore >= 8 && screeningScore <= 13) {
+          assignedGradeLevel = (gradeLevel - 2).toString(); // 2 levels lower
+        } else {
+          assignedGradeLevel = '';
+        }
+
+        if (assignedGradeLevel.isNotEmpty) {
+          // Fetch the corresponding story and quiz from Firestore
+          QuerySnapshot storySnapshot = await FirebaseFirestore.instance
+              .collection('Stories')
+              .where('gradeLevel', isEqualTo: assignedGradeLevel)
+              .get(); // Removed limit(1) to fetch all stories
+
+          QuerySnapshot quizSnapshot = await FirebaseFirestore.instance
+              .collection('Quizzes')
+              .where('gradeLevel', isEqualTo: assignedGradeLevel)
+              .get(); // Removed limit(1) to fetch all quizzes
+
+          // Check if there are any stories and quizzes available
+          if (storySnapshot.docs.isNotEmpty && quizSnapshot.docs.isNotEmpty) {
+            // Randomly select a story and quiz or loop back to assign if all are used
+            int storyIndex = userCredential.user!.uid.hashCode % storySnapshot.docs.length;
+            int quizIndex = userCredential.user!.uid.hashCode % quizSnapshot.docs.length;
+
+            DocumentSnapshot assignedStory = storySnapshot.docs[storyIndex];
+            DocumentSnapshot assignedQuiz = quizSnapshot.docs[quizIndex];
+
+            // Assign both story and quiz to the student
+            await FirebaseFirestore.instance
+                .collection('Students')
+                .doc(userCredential.user!.uid)
+                .collection('AssignedAssessments')
+                .add({
+              'storyId': assignedStory.id,
+              'storyTitle': assignedStory['title'],
+              'quizId': assignedQuiz.id,
+              'quizTitle': assignedQuiz['title'],
+              'assignedGradeLevel': assignedGradeLevel,
+              'assignedAt': Timestamp.now(),
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Successfully registered and assigned assessment!')),
+            );
+          } else {
+            // If no stories or quizzes available, reassign previous stories and quizzes
+            QuerySnapshot allStories = await FirebaseFirestore.instance.collection('Stories').get();
+            QuerySnapshot allQuizzes = await FirebaseFirestore.instance.collection('Quizzes').get();
+
+            if (allStories.docs.isNotEmpty && allQuizzes.docs.isNotEmpty) {
+              int storyIndex = userCredential.user!.uid.hashCode % allStories.docs.length;
+              int quizIndex = userCredential.user!.uid.hashCode % allQuizzes.docs.length;
+
+              DocumentSnapshot assignedStory = allStories.docs[storyIndex];
+              DocumentSnapshot assignedQuiz = allQuizzes.docs[quizIndex];
+
+              // Assign the reused story and quiz to the student
+              await FirebaseFirestore.instance
+                  .collection('Students')
+                  .doc(userCredential.user!.uid)
+                  .collection('AssignedAssessments')
+                  .add({
+                'storyId': assignedStory.id,
+                'storyTitle': assignedStory['title'],
+                'quizId': assignedQuiz.id,
+                'quizTitle': assignedQuiz['title'],
+                'assignedGradeLevel': assignedGradeLevel,
+                'assignedAt': Timestamp.now(),
+              });
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Successfully registered and assigned reused assessment!')),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No suitable story or quiz found for this grade level.')),
+              );
+            }
+          }
+        }
+      }
+
+      // Show success message and redirect to login
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Successfully registered! Redirecting to login...')),
+      );
+
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Redirect to StudentLogin page
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LogInStudent()),
+        (route) => false,
+      );
+    } else {
       setState(() {
-        _loading = false;
+        _errorMessage = 'Invalid teacher code. Please check and try again.';
       });
     }
+  } catch (e) {
+    setState(() {
+      _errorMessage = 'Registration failed: ${e.toString()}';
+    });
+  } finally {
+    setState(() {
+      _loading = false;
+    });
   }
+}
+
+
 
   void _validateInputs() {
     setState(() {
@@ -142,10 +239,10 @@ class _SignUpStudentState extends State<SignUpStudent> {
           _teacherCodeController.text.isNotEmpty &&
           _selectedTeacherId != null &&
           _selectedGradeLevel != null &&
-          _selectedGender != null && // Check if gender is selected
+          _selectedGender != null &&
           _scoreController.text.isNotEmpty;
 
-      bool isTeacherCodeValid = _teacherCodeController.text.length == 6; // Ensure code length is exactly 6
+      bool isTeacherCodeValid = _teacherCodeController.text.length == 6;
       bool arePasswordsMatching = _passwordController.text == _confirmPasswordController.text;
 
       if (isFieldsNotEmpty && isTeacherCodeValid && arePasswordsMatching) {
@@ -201,6 +298,22 @@ class _SignUpStudentState extends State<SignUpStudent> {
                 ),
               ),
               const SizedBox(height: 20),
+              DropdownButtonFormField<String>(
+                hint: const Text("Select Gender"),
+                items: <String>['Male', 'Female'].map((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedGender = value;
+                    _validateInputs();
+                  });
+                },
+              ),
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -237,40 +350,19 @@ class _SignUpStudentState extends State<SignUpStudent> {
                 },
               ),
               const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
-                hint: const Text("Select Gender"), // Gender dropdown
-                items: <String>['Male', 'Female'].map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedGender = value;
-                    _validateInputs();
-                  });
-                },
-              ),
-              const SizedBox(height: 20),
               TextFormField(
                 controller: _teacherCodeController,
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
-                  LengthLimitingTextInputFormatter(6), // Limit to 6 characters
+                  LengthLimitingTextInputFormatter(6),
+                  UpperCaseTextFormatter(), // Custom TextInputFormatter to automatically convert to uppercase
                 ],
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.code),
                   labelText: "Teacher Code",
                   border: OutlineInputBorder(),
                 ),
-                onChanged: (value) {
-                  _teacherCodeController.value = _teacherCodeController.value.copyWith(
-                    text: value.toUpperCase(),
-                    selection: TextSelection.collapsed(offset: value.length),
-                  );
-                  _validateInputs();
-                },
+                onChanged: (_) => _validateInputs(),
               ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
@@ -362,6 +454,18 @@ class _SignUpStudentState extends State<SignUpStudent> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// Custom UpperCase TextInputFormatter
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return newValue.copyWith(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
     );
   }
 }

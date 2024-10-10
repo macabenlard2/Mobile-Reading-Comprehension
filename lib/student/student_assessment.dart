@@ -24,29 +24,43 @@ class _StudentAssessmentState extends State<StudentAssessment> {
   }
 
   Future<void> loadAssignedItems() async {
-    try {
-      var snapshot = await FirebaseFirestore.instance
-          .collection('AssignedQuizzes')
-          .where('studentId', isEqualTo: widget.studentId)
-          .get();
+  try {
+    // Fetch the automatically assigned assessments from AssignedAssessments collection
+    var assignedAssessmentsSnapshot = await FirebaseFirestore.instance
+        .collection('Students')
+        .doc(widget.studentId)
+        .collection('AssignedAssessments')
+        .get();
 
-      if (snapshot.docs.isEmpty) {
-        print("No assigned quizzes found for the student.");
-      } else {
-        print("Assigned quizzes found: ${snapshot.docs.length}");
-      }
+    // Fetch the manually assigned quizzes from AssignedQuizzes collection
+    var assignedQuizzesSnapshot = await FirebaseFirestore.instance
+        .collection('AssignedQuizzes')
+        .where('studentId', isEqualTo: widget.studentId)
+        .get();
 
-      setState(() {
-        assignedItems = snapshot.docs;
-        isLoading = false;
-      });
-    } catch (e) {
-      print("Error fetching assigned items: $e");
-      setState(() {
-        isLoading = false;
-      });
+    // Combine the results from both collections
+    List<DocumentSnapshot> combinedDocs = [
+      ...assignedAssessmentsSnapshot.docs,
+      ...assignedQuizzesSnapshot.docs,
+    ];
+
+    if (combinedDocs.isEmpty) {
+      print("No assigned assessments or quizzes found for the student.");
+    } else {
+      print("Assigned assessments and quizzes found: ${combinedDocs.length}");
     }
+
+    setState(() {
+      assignedItems = combinedDocs;
+      isLoading = false;
+    });
+  } catch (e) {
+    print("Error fetching assigned items: $e");
+    setState(() {
+      isLoading = false;
+    });
   }
+}
 
   @override
   Widget build(BuildContext context) {

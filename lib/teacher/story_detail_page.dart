@@ -6,7 +6,8 @@ class StoryDetailPage extends StatefulWidget {
   final String docId;
   final String title;
   final String content;
-  final bool isTeacherStory; // Flag to differentiate between shared and teacher-specific stories
+  final bool isTeacherStory;
+  final String? teacherId;
 
   const StoryDetailPage({
     super.key,
@@ -14,6 +15,7 @@ class StoryDetailPage extends StatefulWidget {
     required this.title,
     required this.content,
     required this.isTeacherStory,
+    this.teacherId,
   });
 
   @override
@@ -31,6 +33,13 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
     super.initState();
     titleController = TextEditingController(text: widget.title);
     contentController = TextEditingController(text: widget.content);
+
+    // Debugging teacherId
+    if (widget.teacherId == null || widget.teacherId!.isEmpty) {
+      print("Error: Teacher ID is missing for a teacher story!");
+    } else {
+      print("Teacher ID: ${widget.teacherId}");
+    }
   }
 
   @override
@@ -38,60 +47,6 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
     titleController.dispose();
     contentController.dispose();
     super.dispose();
-  }
-
-  Future<void> updateStoryAndQuizTitle() async {
-    setState(() {
-      isLoading = true; // Show loading animation
-    });
-
-    try {
-      if (widget.docId.isNotEmpty) {
-        // Determine the collection based on whether it's a teacher-specific story or shared story
-        String collectionPath = widget.isTeacherStory ? 'TeacherStories' : 'Stories';
-
-        // Update the story title and content
-        await FirebaseFirestore.instance.collection(collectionPath).doc(widget.docId).update({
-          'title': titleController.text,
-          'content': contentController.text,
-        });
-
-        // Update the associated quiz title
-        var quizSnapshot = await FirebaseFirestore.instance
-            .collection('Quizzes')
-            .where('storyId', isEqualTo: widget.docId)
-            .get();
-
-        for (var doc in quizSnapshot.docs) {
-          await doc.reference.update({
-            'title': titleController.text,
-          });
-        }
-
-        setState(() {
-          isEditing = false;
-          isLoading = false; // Hide loading animation after update
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Story and quiz titles updated successfully')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document ID is empty')),
-        );
-        setState(() {
-          isLoading = false; // Hide loading animation on failure
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update story and quiz titles: $e')),
-      );
-      setState(() {
-        isLoading = false; // Hide loading animation on failure
-      });
-    }
   }
 
   @override
@@ -107,7 +62,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF15A323), // Green color for the AppBar
+        backgroundColor: const Color(0xFF15A323),
         automaticallyImplyLeading: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -125,21 +80,29 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
           children: [
             StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection(widget.isTeacherStory ? 'TeacherStories' : 'Stories') // Collection based on isTeacherStory
+                  .collection(widget.isTeacherStory && widget.teacherId != null && widget.teacherId!.isNotEmpty
+                      ? 'Teachers/${widget.teacherId}/TeacherStories'
+                      : 'Stories')
                   .doc(widget.docId)
                   .snapshots(),
               builder: (context, snapshot) {
+                if (widget.isTeacherStory && (widget.teacherId == null || widget.teacherId!.isEmpty)) {
+                  print("Error: Teacher ID is missing for a teacher story!");
+                  return const Center(child: Text("Invalid teacher ID or story not found."));
+                }
+
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
                 if (!snapshot.hasData || !snapshot.data!.exists) {
+                  print("No data found for docId: ${widget.docId}");
                   return const Center(child: Text('Story not found or already deleted'));
                 }
 
                 var storyData = snapshot.data!;
-                titleController.text = storyData['title'] ?? '';
-                contentController.text = storyData['content'] ?? '';
+                titleController.text = storyData['title'] ?? 'No Title';
+                contentController.text = storyData['content'] ?? 'No Content';
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -209,7 +172,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 color: Colors.black.withOpacity(0.5),
                 child: const Center(
                   child: CircularProgressIndicator(
-                    color: Colors.green, // Green color for the loading animation
+                    color: Colors.green,
                   ),
                 ),
               ),
@@ -219,52 +182,61 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
     );
   }
 
-  Future<void> deleteStory() async {
-    bool confirmed = await _showDeleteConfirmationDialog();
+ Future<void> deleteStory() async {
+  bool confirmed = await _showDeleteConfirmationDialog();
 
-    if (confirmed) {
-      setState(() {
-        isLoading = true; // Show loading animation
-      });
+  if (confirmed) {
+    setState(() {
+      isLoading = true;
+    });
 
-      try {
-        if (widget.docId.isNotEmpty) {
-          // Determine the collection path based on isTeacherStory flag
-          String collectionPath = widget.isTeacherStory ? 'TeacherStories' : 'Stories';
+    try {
+      if (widget.docId.isNotEmpty) {
+        // Determine collection path based on whether it is a teacher story or not
+        String storyCollectionPath = widget.isTeacherStory && widget.teacherId != null && widget.teacherId!.isNotEmpty
+            ? 'Teachers/${widget.teacherId}/TeacherStories'
+            : 'Stories';
 
-          // Delete the story
-          await FirebaseFirestore.instance.collection(collectionPath).doc(widget.docId).delete();
+        // Delete the story from Firestore
+        await FirebaseFirestore.instance.collection(storyCollectionPath).doc(widget.docId).delete();
 
-          // Delete the associated quiz
-          var quizSnapshot = await FirebaseFirestore.instance
-              .collection('Quizzes')
-              .where('storyId', isEqualTo: widget.docId)
-              .get();
+        // Check for and delete the associated quiz
+        String quizCollectionPath = widget.isTeacherStory && widget.teacherId != null && widget.teacherId!.isNotEmpty
+            ? 'Teachers/${widget.teacherId}/TeacherQuizzes'
+            : 'Quizzes';
 
-          for (var doc in quizSnapshot.docs) {
-            await doc.reference.delete();
-          }
+        // Query the quiz based on the storyId and delete it
+        var quizSnapshot = await FirebaseFirestore.instance
+            .collection(quizCollectionPath)
+            .where('storyId', isEqualTo: widget.docId)
+            .get();
 
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Story and associated quiz deleted successfully')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Document ID is empty')),
-          );
+        for (var doc in quizSnapshot.docs) {
+          await doc.reference.delete();
         }
-      } catch (e) {
+
+        // After deleting both story and associated quiz
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete story: $e')),
+          const SnackBar(content: Text('Story and associated quiz deleted successfully')),
         );
-      } finally {
-        setState(() {
-          isLoading = false; // Hide loading animation after deletion
-        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document ID is empty')),
+        );
       }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete story: $e')),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
+}
+
 
   Future<bool> _showDeleteConfirmationDialog() async {
     return await showDialog<bool>(
@@ -286,5 +258,24 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
         );
       },
     ) ?? false;
+  }
+
+  void updateStoryAndQuizTitle() {
+    // Logic to update the story and associated quiz title in Firestore
+  }
+
+  void _navigateToStoryDetail(String docId, String title, String content, bool isTeacherStory) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StoryDetailPage(
+          docId: docId,
+          title: title,
+          content: content,
+          isTeacherStory: isTeacherStory,
+          teacherId: isTeacherStory ? widget.teacherId : null,
+        ),
+      ),
+    );
   }
 }

@@ -38,15 +38,18 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
     super.dispose();
   }
 
-  Future<void> _loadQuizData() async {
+Future<void> _loadQuizData() async {
   setState(() {
     _isLoading = true;
   });
 
   try {
+    // Correct query for fetching the quiz from the TeacherQuizzes collection
     DocumentSnapshot quizSnapshot = await FirebaseFirestore.instance
-        .collection('Quizzes')
-        .doc(widget.quizId)
+        .collection('Teachers')
+        .doc(widget.teacherId) // Use the teacherId
+        .collection('TeacherQuizzes') // Fetch from TeacherQuizzes subcollection
+        .doc(widget.quizId) // Fetch the specific quiz using quizId
         .get();
 
     if (quizSnapshot.exists) {
@@ -142,62 +145,14 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
   }
 
   Future<void> _deleteQuestion(int index) async {
-    bool confirmDelete = await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Delete Question'),
-          content: const Text('Are you sure you want to delete this question and all its answers?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmDelete) {
-      setState(() {
-        _questionControllers[index].dispose();
-        for (var controller in _answerControllers[index]) {
-          controller.dispose();
-        }
-
-        _questions.removeAt(index);
-        _questionControllers.removeAt(index);
-        _answerControllers.removeAt(index);
-      });
-
-      try {
-        await FirebaseFirestore.instance.collection('Quizzes').doc(widget.quizId).update({
-          'questions': _questions,
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Question deleted successfully')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete question: $e')),
-        );
-      }
-    }
-  }
-
-  void _clearAnswer(int questionIndex, String answerKey) {
     setState(() {
-      final answers = _questions[questionIndex]['answers'] as Map<String, String>;
-      final answerKeys = answers.keys.toList();
-      final answerIndex = answerKeys.indexOf(answerKey);
-
-      answers[answerKey] = '';
-      _answerControllers[questionIndex][answerIndex].text = '';
+      _questions.removeAt(index);
+      _questionControllers.removeAt(index);
+      _answerControllers.removeAt(index);
     });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Question deleted successfully')),
+    );
   }
 
   Future<void> _saveQuiz() async {
@@ -231,6 +186,17 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _clearAnswer(int questionIndex, String answerKey) {
+    setState(() {
+      final answers = _questions[questionIndex]['answers'] as Map<String, String>;
+      final answerKeys = answers.keys.toList();
+      final answerIndex = answerKeys.indexOf(answerKey);
+
+      answers[answerKey] = '';
+      _answerControllers[questionIndex][answerIndex].text = '';
+    });
   }
 
   @override

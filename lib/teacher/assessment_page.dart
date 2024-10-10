@@ -1,5 +1,4 @@
-import 'dart:developer'; // Import this for logging
-
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -25,7 +24,7 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
 
   String? selectedSet;
   String? selectedGradeLevel;
-  String sortOrder = 'Ascending'; // or 'Descending'
+  String sortOrder = 'Ascending';
   String searchQuery = '';
 
   @override
@@ -99,7 +98,7 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
           ),
           body: Column(
             children: [
-              _buildFilterBar(), // Unified filter bar with search
+              _buildFilterBar(),
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
@@ -200,99 +199,91 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
     });
   }
 
- Widget _buildStoryListView(String testType) {
-  final currentUser = FirebaseAuth.instance.currentUser;
+  Widget _buildStoryListView(String testType) {
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-  // Log if user matches teacherId
-  if (currentUser == null) {
-    log('Error: No authenticated user');
-    return Center(child: Text("Permission Denied: Unauthorized User"));
-  } else if (currentUser.uid != widget.teacherId) {
-    log('Error: Authenticated user UID (${currentUser.uid}) does not match teacherId (${widget.teacherId})');
-    return Center(child: Text("Permission Denied: Unauthorized User"));
+    if (currentUser == null) {
+      log('Error: No authenticated user');
+      return Center(child: Text("Permission Denied: Unauthorized User"));
+    } else if (currentUser.uid != widget.teacherId) {
+      log('Error: Authenticated user UID (${currentUser.uid}) does not match teacherId (${widget.teacherId})');
+      return Center(child: Text("Permission Denied: Unauthorized User"));
+    }
+
+    Query sharedQuery = FirebaseFirestore.instance
+        .collection('Stories')
+        .where('type', isEqualTo: testType);
+
+    Query teacherQuery = FirebaseFirestore.instance
+        .collection('Teachers')
+        .doc(widget.teacherId)
+        .collection('TeacherStories')
+        .where('type', isEqualTo: testType);
+
+    if (selectedSet != null && selectedSet!.isNotEmpty) {
+      sharedQuery = sharedQuery.where('set', isEqualTo: selectedSet);
+      teacherQuery = teacherQuery.where('set', isEqualTo: selectedSet);
+    }
+
+    if (selectedGradeLevel != null && selectedGradeLevel!.isNotEmpty) {
+      sharedQuery = sharedQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
+      teacherQuery = teacherQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
+    }
+
+    var order = sortOrder == 'Ascending' ? false : true;
+    sharedQuery = sharedQuery.orderBy('title', descending: order);
+    teacherQuery = teacherQuery.orderBy('title', descending: order);
+
+    return FutureBuilder(
+      future: Future.wait([sharedQuery.get(), teacherQuery.get()]),
+      builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
+        if (snapshot.hasError) {
+          log('Error retrieving stories: ${snapshot.error}');
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        var sharedStories = snapshot.data![0].docs;
+        var teacherStories = snapshot.data![1].docs;
+
+        var allStories = sharedStories + teacherStories;
+
+        if (allStories.isEmpty) {
+          return const Center(child: Text('No data found'));
+        }
+
+        var filteredStories = allStories.where((story) {
+          var data = story.data() as Map<String, dynamic>;
+          var title = data['title']?.toLowerCase() ?? '';
+          return title.contains(searchQuery);
+        }).toList();
+
+        return ListView.builder(
+          itemCount: filteredStories.length,
+          itemBuilder: (context, index) {
+            var data = filteredStories[index].data() as Map<String, dynamic>;
+            var title = data['title'] ?? 'Untitled';
+            var gradeLevel = data['gradeLevel'] ?? 'N/A';
+            var set = data['set'] ?? 'N/A';
+
+            return ListTile(
+              title: Text(
+                title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text('Grade Level: $gradeLevel, Set: $set'),
+              onTap: () {
+                _navigateToStoryDetail(filteredStories[index].id, data['title'], data['content'], teacherStories.contains(filteredStories[index]));
+              },
+            );
+          },
+        );
+      },
+    );
   }
-
-  // Query for shared stories
-  Query sharedQuery = FirebaseFirestore.instance
-      .collection('Stories')
-      .where('type', isEqualTo: testType);
-
-  // Query for teacher-specific stories
-  Query teacherQuery = FirebaseFirestore.instance
-      .collection('Teachers')
-      .doc(widget.teacherId)
-      .collection('TeacherStories')
-      .where('type', isEqualTo: testType);
-
-  // If filters are applied, modify the queries
-  if (selectedSet != null && selectedSet!.isNotEmpty) {
-    sharedQuery = sharedQuery.where('set', isEqualTo: selectedSet);
-    teacherQuery = teacherQuery.where('set', isEqualTo: selectedSet);
-  }
-
-  if (selectedGradeLevel != null && selectedGradeLevel!.isNotEmpty) {
-    sharedQuery = sharedQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
-    teacherQuery = teacherQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
-  }
-
-  var order = sortOrder == 'Ascending' ? false : true;
-  sharedQuery = sharedQuery.orderBy('title', descending: order);
-  teacherQuery = teacherQuery.orderBy('title', descending: order);
-
-  // Combine the two queries using Future.wait to await both queries
-  return FutureBuilder(
-    future: Future.wait([sharedQuery.get(), teacherQuery.get()]),
-    builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
-      if (snapshot.hasError) {
-        log('Error retrieving stories: ${snapshot.error}');
-        return Center(child: Text('Error: ${snapshot.error}'));
-      }
-
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
-      // Combine the documents from both shared and teacher stories
-      var sharedStories = snapshot.data![0].docs;
-      var teacherStories = snapshot.data![1].docs;
-
-      var allStories = sharedStories + teacherStories;
-
-      if (allStories.isEmpty) {
-        return const Center(child: Text('No data found'));
-      }
-
-      // Apply search filter
-      var filteredStories = allStories.where((story) {
-        var data = story.data() as Map<String, dynamic>;
-        var title = data['title']?.toLowerCase() ?? '';
-        return title.contains(searchQuery);
-      }).toList();
-
-      return ListView.builder(
-        itemCount: filteredStories.length,
-        itemBuilder: (context, index) {
-          var data = filteredStories[index].data() as Map<String, dynamic>;
-          var title = data['title'] ?? 'Untitled';
-          var gradeLevel = data['gradeLevel'] ?? 'N/A';
-          var set = data['set'] ?? 'N/A';
-
-          return ListTile(
-            title: Text(
-              title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text('Grade Level: $gradeLevel, Set: $set'),
-            onTap: () {
-              _navigateToStoryDetail(filteredStories[index].id, data['title'], data['content'], teacherStories.contains(filteredStories[index]));
-            },
-          );
-        },
-      );
-    },
-  );
-}
-
 
   void _showFilterOptions(BuildContext context) {
     showModalBottomSheet(
@@ -377,7 +368,7 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                 },
                 child: Text(
                   'Apply',
-                  style: TextStyle(color: Colors.black),  // Font color set to black
+                  style: TextStyle(color: Colors.black),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
@@ -462,7 +453,8 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
           docId: docId,
           title: title,
           content: content,
-          isTeacherStory: isTeacherStory, // Pass this flag to indicate teacher-specific stories
+          isTeacherStory: isTeacherStory,
+          teacherId: isTeacherStory ? widget.teacherId : null,
         ),
       ),
     );
