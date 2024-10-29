@@ -6,6 +6,7 @@ import 'package:reading_comprehension/teacher/assessment_page.dart';
 import 'package:reading_comprehension/widgets/background.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:reading_comprehension/teacher/mark_miscues_page.dart';
 
 class TeacherHomePage extends StatefulWidget {
   final String teacherId;
@@ -55,12 +56,8 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
   Future<void> _checkShowInstructionOverlay() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
+      // Instruction overlay check logic if needed
     });
-  }
-
-  Future<void> _setShowInstructionOverlay(bool value) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('showInstructionOverlay', value);
   }
 
   Future<void> _confirmLogout() async {
@@ -109,34 +106,30 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
       },
       child: Background(
         child: Scaffold(
-           appBar: AppBar(
+          appBar: AppBar(
             backgroundColor: const Color(0xFF15A323),
-            elevation: 4,  
+            elevation: 4,
             centerTitle: true,
             title: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-            SizedBox(
-            width: MediaQuery.of(context).size.width * 0.3,  
-            child: Image.asset(
-            "assets/images/appbar.png",  
-            fit: BoxFit.contain,  
-              ),
-            ),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.3,
+                  child: Image.asset(
+                    "assets/images/appbar.png",
+                    fit: BoxFit.contain,
+                  ),
+                ),
               ],
-           ),
-              actions: [
-              IconButton(
-              icon: const Icon(Icons.settings, color: Colors.black),
-              onPressed: () {
-
-            },
-           tooltip: 'Settings',
             ),
-             ],
-),
-
-
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.black),
+                onPressed: () {},
+                tooltip: 'Settings',
+              ),
+            ],
+          ),
           drawer: TeacherDrawer(teacherId: teacherId),
           body: Column(
             children: [
@@ -161,13 +154,15 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => AssessmentPage(teacherId: teacherId),
+                              builder: (context) =>
+                                  AssessmentPage(teacherId: teacherId),
                             ),
                           );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF15A323),
-                          padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 50, vertical: 20),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -187,19 +182,51 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => StudentListPage(teacherId: teacherId),
+                              builder: (context) =>
+                                  StudentListPage(teacherId: teacherId),
                             ),
                           );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF15A323),
-                          padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 50, vertical: 20),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         child: const Text(
                           'Student List',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => MarkMiscuesPage(
+                                studentId: 'selectedStudentId', // Student ID to be passed
+                                passageId: 'selectedPassageId', // Passage ID to be passed
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF15A323),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 50, vertical: 20),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Mark Miscues',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,

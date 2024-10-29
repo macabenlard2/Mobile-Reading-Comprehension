@@ -24,43 +24,37 @@ class _StudentAssessmentState extends State<StudentAssessment> {
   }
 
   Future<void> loadAssignedItems() async {
-  try {
-    // Fetch the automatically assigned assessments from AssignedAssessments collection
-    var assignedAssessmentsSnapshot = await FirebaseFirestore.instance
-        .collection('Students')
-        .doc(widget.studentId)
-        .collection('AssignedAssessments')
-        .get();
+    try {
+      // Fetch the automatically assigned assessments from AssignedAssessments collection
+      var assignedAssessmentsSnapshot = await FirebaseFirestore.instance
+          .collection('Students')
+          .doc(widget.studentId)
+          .collection('AssignedAssessments')
+          .get();
 
-    // Fetch the manually assigned quizzes from AssignedQuizzes collection
-    var assignedQuizzesSnapshot = await FirebaseFirestore.instance
-        .collection('AssignedQuizzes')
-        .where('studentId', isEqualTo: widget.studentId)
-        .get();
+      // Fetch the manually assigned quizzes from AssignedQuizzes collection
+      var assignedQuizzesSnapshot = await FirebaseFirestore.instance
+          .collection('AssignedQuizzes')
+          .where('studentId', isEqualTo: widget.studentId)
+          .get();
 
-    // Combine the results from both collections
-    List<DocumentSnapshot> combinedDocs = [
-      ...assignedAssessmentsSnapshot.docs,
-      ...assignedQuizzesSnapshot.docs,
-    ];
+      // Combine the results from both collections
+      List<DocumentSnapshot> combinedDocs = [
+        ...assignedAssessmentsSnapshot.docs,
+        ...assignedQuizzesSnapshot.docs,
+      ];
 
-    if (combinedDocs.isEmpty) {
-      print("No assigned assessments or quizzes found for the student.");
-    } else {
-      print("Assigned assessments and quizzes found: ${combinedDocs.length}");
+      setState(() {
+        assignedItems = combinedDocs;
+        isLoading = false;
+      });
+    } catch (e) {
+      print("Error fetching assigned items: $e");
+      setState(() {
+        isLoading = false;
+      });
     }
-
-    setState(() {
-      assignedItems = combinedDocs;
-      isLoading = false;
-    });
-  } catch (e) {
-    print("Error fetching assigned items: $e");
-    setState(() {
-      isLoading = false;
-    });
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +73,7 @@ class _StudentAssessmentState extends State<StudentAssessment> {
     }
 
     return Scaffold(
-      body: Background( // Assuming Background is the widget from background.dart
+      body: Background(
         child: Column(
           children: [
             AppBar(
@@ -125,12 +119,14 @@ class _StudentAssessmentState extends State<StudentAssessment> {
                           ),
                           trailing: ElevatedButton(
                             onPressed: () {
+                              DateTime startTime = DateTime.now(); // Capture start time when button is clicked
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => StoryDetailAndQuizPage(
                                     storyId: storyId,
                                     quizId: quizId,
+                                    startTime: startTime, // Pass start time
                                   ),
                                 ),
                               );

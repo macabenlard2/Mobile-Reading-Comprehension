@@ -22,12 +22,17 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
   String? selectedQuiz;
   bool selectAll = false;
 
+  // To track the open state of each filter card
+  bool isReadingTypeOpen = false;
+  bool isStoryTypePassageSetOpen = false;
+  bool isStoryQuizOpen = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Assign Passage and Quiz',
+          'Assign Passage',
           style: TextStyle(
             color: Colors.white, // Ensure the title is white
             fontWeight: FontWeight.bold,
@@ -55,6 +60,15 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                     _buildExpandableFilterCard(
                       title: 'Reading Type',
                       icon: Icons.filter_list,
+                      isOpen: isReadingTypeOpen,
+                      onToggle: () {
+                        setState(() {
+                          // Close other panels when this one opens
+                          isReadingTypeOpen = !isReadingTypeOpen;
+                          isStoryTypePassageSetOpen = false;
+                          isStoryQuizOpen = false;
+                        });
+                      },
                       children: [
                         _buildDropdown(
                           label: 'Reading Type',
@@ -62,7 +76,7 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                           items: ['Oral', 'Silent']
                               .map((type) => DropdownMenuItem<String>(
                                     value: type,
-                                    child: Text(type, style: const TextStyle(color: Colors.black)), // Change text color here
+                                    child: Text(type, style: const TextStyle(color: Colors.black)),
                                   ))
                               .toList(),
                           onChanged: (value) {
@@ -77,6 +91,14 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                     _buildExpandableFilterCard(
                       title: 'Story Type & Passage Set',
                       icon: Icons.book,
+                      isOpen: isStoryTypePassageSetOpen,
+                      onToggle: () {
+                        setState(() {
+                          isStoryTypePassageSetOpen = !isStoryTypePassageSetOpen;
+                          isReadingTypeOpen = false;
+                          isStoryQuizOpen = false;
+                        });
+                      },
                       children: [
                         Row(
                           children: [
@@ -87,7 +109,7 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                                 items: ['Custom', 'Pretest', 'Posttest']
                                     .map((type) => DropdownMenuItem<String>(
                                           value: type,
-                                          child: Text(type, style: const TextStyle(color: Colors.black)), // Change text color here
+                                          child: Text(type, style: const TextStyle(color: Colors.black)),
                                         ))
                                     .toList(),
                                 onChanged: (value) {
@@ -105,7 +127,7 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                                 items: ['A', 'B', 'C', 'D']
                                     .map((set) => DropdownMenuItem<String>(
                                           value: set,
-                                          child: Text(set, style: const TextStyle(color: Colors.black)), // Change text color here
+                                          child: Text(set, style: const TextStyle(color: Colors.black)),
                                         ))
                                     .toList(),
                                 onChanged: (value) {
@@ -123,38 +145,16 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                     _buildExpandableFilterCard(
                       title: 'Select Story & Quiz',
                       icon: Icons.question_answer,
+                      isOpen: isStoryQuizOpen,
+                      onToggle: () {
+                        setState(() {
+                          isStoryQuizOpen = !isStoryQuizOpen;
+                          isReadingTypeOpen = false;
+                          isStoryTypePassageSetOpen = false;
+                        });
+                      },
                       children: [
-                        StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('Stories')
-                              .where('teacherId', isEqualTo: widget.teacherId)
-                              .snapshots(),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) {
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            }
-                            var stories = snapshot.data!.docs;
-                            return _buildDropdown(
-                              label: 'Select Story',
-                              value: selectedStory,
-                              items: stories
-                                  .map((story) => DropdownMenuItem<String>(
-                                        value: story.id,
-                                        child: Text(story['title'] ?? 'No Title', style: const TextStyle(color: Colors.black)), // Change text color here
-                                      ))
-                                  .toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  selectedStory = value;
-                                  selectedQuiz = null; // Reset quiz selection
-                                  fetchAssociatedQuiz(value);
-                                });
-                              },
-                            );
-                          },
-                        ),
+                        _buildStoryDropdown(), // Call the method for both Stories and TeacherStories
                       ],
                     ),
                   ],
@@ -213,7 +213,7 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                                   items: ['All', '3', '4', '5', '6']
                                       .map((grade) => DropdownMenuItem<String>(
                                             value: grade,
-                                            child: Text(grade, style: const TextStyle(color: Colors.black)), // Change text color here
+                                            child: Text(grade, style: const TextStyle(color: Colors.black)),
                                           ))
                                       .toList(),
                                   onChanged: (value) {
@@ -241,7 +241,7 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                                   ),
                                   const Text(
                                     "All",
-                                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black), // Change text color here
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
                                   ),
                                 ],
                               ),
@@ -267,8 +267,7 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
                                 return CheckboxListTile(
                                   title: Text(
                                     name,
-                                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black), // Change text color here
-                                  ),
+                                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black)),
                                   value: selectedStudents.contains(student.id),
                                   onChanged: (bool? selected) {
                                     setState(() {
@@ -324,6 +323,8 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
   Widget _buildExpandableFilterCard({
     required String title,
     required IconData icon,
+    required bool isOpen,
+    required VoidCallback onToggle,
     required List<Widget> children,
   }) {
     return Card(
@@ -333,8 +334,12 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
         leading: Icon(icon, color: const Color(0xFF15A323)),
         title: Text(
           title,
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black), // Change text color here
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
         ),
+        onExpansionChanged: (expanded) {
+          onToggle();
+        },
+        initiallyExpanded: isOpen,
         children: children,
       ),
     );
@@ -353,11 +358,10 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
         value: value,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(color: Colors.black), // Change label text color here
+          labelStyle: const TextStyle(color: Colors.black),
           contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+            borderRadius: BorderRadius.circular(8)),
           filled: true,
           fillColor: Colors.white,
         ),
@@ -372,12 +376,26 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
     FirebaseFirestore.instance
         .collection('Quizzes')
         .where('storyId', isEqualTo: storyId)
-        .where('teacherId', isEqualTo: widget.teacherId)
         .get()
         .then((snapshot) {
       if (snapshot.docs.isNotEmpty) {
         setState(() {
           selectedQuiz = snapshot.docs.first.id;
+        });
+      } else {
+        // If not found in default Quizzes, check TeacherQuizzes
+        FirebaseFirestore.instance
+            .collection('Teachers')
+            .doc(widget.teacherId)
+            .collection('TeacherQuizzes')
+            .where('storyId', isEqualTo: storyId)
+            .get()
+            .then((teacherQuizSnapshot) {
+          if (teacherQuizSnapshot.docs.isNotEmpty) {
+            setState(() {
+              selectedQuiz = teacherQuizSnapshot.docs.first.id;
+            });
+          }
         });
       }
     });
@@ -411,5 +429,65 @@ class _AssignStoryQuizPageState extends State<AssignStoryQuizPage> {
     );
 
     Navigator.of(context).pop();
+  }
+
+  // Fetch both default Stories and TeacherStories
+  Widget _buildStoryDropdown() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('Stories')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        var defaultStories = snapshot.data!.docs;
+
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('Teachers')
+              .doc(widget.teacherId)
+              .collection('TeacherStories')
+              .snapshots(),
+          builder: (context, teacherSnapshot) {
+            if (!teacherSnapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            var teacherStories = teacherSnapshot.data!.docs;
+
+            // Combine default and teacher-specific stories
+            var combinedStories = [...defaultStories, ...teacherStories];
+
+            return _buildDropdown(
+              label: 'Select Story',
+              value: selectedStory,
+              items: combinedStories
+                  .map((story) {
+                    // Safely access the 'title' field, provide a fallback if it doesn't exist
+                    Map<String, dynamic>? storyData = story.data() as Map<String, dynamic>?;
+                    String storyTitle = storyData != null && storyData.containsKey('title') && storyData['title'] != null
+                        ? storyData['title']
+                        : 'Untitled'; // Fallback title if the field does not exist or is null
+                    
+                    return DropdownMenuItem<String>(
+                      value: story.id,
+                      child: Text(storyTitle, style: const TextStyle(color: Colors.black)),
+                    );
+                  })
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedStory = value;
+                  selectedQuiz = null; // Reset quiz selection
+                  fetchAssociatedQuiz(value);
+                });
+              },
+            );
+          },
+        );
+      },
+    );
   }
 }

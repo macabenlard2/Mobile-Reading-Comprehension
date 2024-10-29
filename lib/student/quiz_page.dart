@@ -4,8 +4,15 @@ import 'package:reading_comprehension/widgets/background_reading.dart'; // Impor
 
 class QuizPage extends StatefulWidget {
   final String quizId;
+  final int readingTime; // Accept reading time from the previous page
+  final int passageWordCount; // Accept the word count
 
-  const QuizPage({super.key, required this.quizId});
+  const QuizPage({
+    super.key,
+    required this.quizId,
+    required this.readingTime, // Accept reading time
+    required this.passageWordCount, // Accept passage word count
+  });
 
   @override
   _QuizPageState createState() => _QuizPageState();
@@ -85,11 +92,22 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   void showResult() {
+    // Calculate reading speed
+    double readingTimeInMinutes = widget.readingTime / 60;
+    double readingSpeed = widget.passageWordCount / readingTimeInMinutes;
+
+    // Calculate comprehension score percentage
+    double comprehensionScorePercentage = (score / questions.length) * 100;
+
+    // Display both comprehension score and reading speed
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Quiz Result'),
-        content: Text('You scored $score out of ${questions.length}'),
+        content: Text(
+          'Reading Speed: ${readingSpeed.toStringAsFixed(2)} words per minute\n'
+          'Comprehension Score: $score out of ${questions.length} (${comprehensionScorePercentage.toStringAsFixed(2)}%)',
+        ),
         actions: [
           TextButton(
             onPressed: () {
