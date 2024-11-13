@@ -35,7 +35,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           .doc(teacherId)
           .get();
 
-      if (teacherDoc.exists && mounted) { // Check if mounted to ensure context is valid
+      if (teacherDoc.exists && mounted) {
         setState(() {
           teacherCode = teacherDoc['teacherCode'];
         });
@@ -82,14 +82,17 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
 
     if (shouldLogout == true) {
       await FirebaseAuth.instance.signOut();
-      if (mounted) Navigator.popUntil(context, ModalRoute.withName('/'));
+      if (mounted) {
+        // Ensure only one navigation operation is triggered
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope( // Use PopScope instead of WillPopScope
-      onPopInvoked: (bool _) async {
+    return WillPopScope(  // Using WillPopScope instead of PopScope
+      onWillPop: () async {
         if (_backButtonCount == 0) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Press back again to log out'),
@@ -97,8 +100,10 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           setState(() {
             _backButtonCount++;
           });
+          return false;  // Prevents immediate exit
         } else {
-          await _confirmLogout();
+          _confirmLogout();
+          return false;  // Prevents immediate exit until logout completes
         }
       },
       child: Background(

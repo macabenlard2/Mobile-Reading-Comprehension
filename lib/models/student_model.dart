@@ -1,4 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Student {
+  final String id; // Add an id field
   final String firstName;
   final String lastName;
   final String gradeLevel;
@@ -7,6 +10,7 @@ class Student {
   final Map<String, dynamic> progress;
 
   Student({
+    required this.id, // Include id in the constructor
     required this.firstName,
     required this.lastName,
     required this.gradeLevel,
@@ -15,8 +19,10 @@ class Student {
     required this.progress,
   });
 
-  factory Student.fromFirestore(Map<String, dynamic> data) {
+  factory Student.fromFirestore(DocumentSnapshot doc) { // Use DocumentSnapshot
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Student(
+      id: doc.id, // Assign the document ID here
       firstName: data['firstName'] ?? 'Unknown',
       lastName: data['lastName'] ?? 'Unknown',
       gradeLevel: data['gradeLevel'] ?? 'Unknown',
@@ -25,6 +31,4 @@ class Student {
       progress: data['progress'] ?? {},
     );
   }
-
-  get id => null;
 }

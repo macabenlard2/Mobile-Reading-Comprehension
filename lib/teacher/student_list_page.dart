@@ -20,8 +20,8 @@ class _StudentListPageState extends State<StudentListPage> {
   String _selectedGender = 'All';
   bool _isAscending = true;
 
+  // Mock fetching passage ID, replace this function with actual fetching logic
   Future<String?> _fetchPassageId(String studentId) async {
-    // Mock passage ID for demo purposes, replace with actual logic
     return 'examplePassageId';
   }
 
@@ -133,9 +133,10 @@ class _StudentListPageState extends State<StudentListPage> {
                     return const Center(child: Text('No students found.'));
                   }
 
-                  var students = snapshot.data!.docs.map((doc) {
-                    return Student.fromFirestore(doc.data() as Map<String, dynamic>);
-                  }).toList();
+                 var students = snapshot.data!.docs.map((doc) {
+                     return Student.fromFirestore(doc); // Pass the DocumentSnapshot
+                    }).toList();
+
 
                   if (_searchText.isNotEmpty) {
                     students = students.where((student) {
@@ -165,23 +166,33 @@ class _StudentListPageState extends State<StudentListPage> {
                     itemCount: students.length,
                     itemBuilder: (context, index) {
                       final student = students[index];
+                      final studentId = student.id;
+
                       return ListTile(
                         title: Text('${student.firstName ?? ''} ${student.lastName ?? ''}'),
                         subtitle: Text('Grade: ${student.gradeLevel}\nGender: ${student.gender}'),
                         trailing: IconButton(
-                          icon: const Icon(Icons.assessment, color: Colors.green),
+                          icon: const Icon(Icons.book, color: Colors.black),
                           onPressed: () async {
-                            String? passageId = await _fetchPassageId(student.id ?? '');
-                            if (passageId != null && student.id != null) {
+                            if (studentId == null) {
+                              print('Error: studentId is null');
+                              return;
+                            }
+                            print('Button pressed for student: $studentId');
+                            String? passageId = await _fetchPassageId(studentId);
+                            print('Fetched passage ID: $passageId');
+                            if (passageId != null) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => MarkMiscuesPage(
-                                    studentId: student.id!,
+                                    studentId: studentId,
                                     passageId: passageId,
                                   ),
                                 ),
                               );
+                            } else {
+                              print('Error: passageId is null');
                             }
                           },
                         ),

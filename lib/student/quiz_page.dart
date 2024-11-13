@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:reading_comprehension/widgets/background_reading.dart'; // Import the Background widget
+import 'package:reading_comprehension/widgets/background_reading.dart';
 
 class QuizPage extends StatefulWidget {
   final String quizId;
-  final int readingTime; // Accept reading time from the previous page
-  final int passageWordCount; // Accept the word count
+  final String studentId;
+  final int readingTime;
+  final int passageWordCount;
 
   const QuizPage({
     super.key,
     required this.quizId,
-    required this.readingTime, // Accept reading time
-    required this.passageWordCount, // Accept passage word count
+    required this.studentId,
+    required this.readingTime,
+    required this.passageWordCount,
   });
 
   @override
@@ -39,18 +41,7 @@ class _QuizPageState extends State<QuizPage> {
       if (quizData != null && quizData.containsKey('questions')) {
         var questionsList = List<Map<String, dynamic>>.from(quizData['questions']);
         setState(() {
-          questions = questionsList.map((question) {
-            if (question['answers'] == null) {
-              question['answers'] = {'A': '', 'B': '', 'C': '', 'D': ''};
-            } else {
-              for (var key in ['A', 'B', 'C', 'D']) {
-                if (!question['answers'].containsKey(key)) {
-                  question['answers'][key] = '';
-                }
-              }
-            }
-            return question;
-          }).toList();
+          questions = questionsList;
           isLoading = false;
         });
       } else {
@@ -71,9 +62,7 @@ class _QuizPageState extends State<QuizPage> {
   void submitAnswer() {
     if (selectedOption == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an option.'),
-        ),
+        const SnackBar(content: Text('Please select an option.')),
       );
       return;
     }
@@ -92,34 +81,59 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   void showResult() {
-    // Calculate reading speed
     double readingTimeInMinutes = widget.readingTime / 60;
     double readingSpeed = widget.passageWordCount / readingTimeInMinutes;
-
-    // Calculate comprehension score percentage
     double comprehensionScorePercentage = (score / questions.length) * 100;
 
-    // Display both comprehension score and reading speed
+    // Calculate comprehension level based on Phil-IRI standards
+    String comprehensionLevel = determineComprehensionLevel(readingSpeed, comprehensionScorePercentage);
+
+    // Store quiz results and comprehension level
+    _storeQuizResults(readingSpeed, comprehensionScorePercentage, comprehensionLevel);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Quiz Result'),
         content: Text(
           'Reading Speed: ${readingSpeed.toStringAsFixed(2)} words per minute\n'
-          'Comprehension Score: $score out of ${questions.length} (${comprehensionScorePercentage.toStringAsFixed(2)}%)',
+          'Comprehension Score: $score out of ${questions.length} (${comprehensionScorePercentage.toStringAsFixed(2)}%)\n'
+          'Comprehension Level: $comprehensionLevel',
         ),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-              Navigator.pop(context);
+              Navigator.of(context).popUntil((route) => route.isFirst); // Pop back to the main screen
             },
             child: const Text('OK'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _storeQuizResults(double readingSpeed, double comprehensionScore, String comprehensionLevel) async {
+    await FirebaseFirestore.instance.collection('StudentPerformance').add({
+      'studentId': widget.studentId,
+      'quizId': widget.quizId,
+      'readingTime': widget.readingTime,
+      'readingSpeed': readingSpeed,
+      'comprehensionScore': comprehensionScore,
+      'totalScore': score,
+      'comprehensionLevel': comprehensionLevel,
+      'timestamp': Timestamp.now(),
+    });
+  }
+
+  String determineComprehensionLevel(double readingSpeed, double comprehensionScore) {
+    // Define logic based on Phil-IRI standards for determining comprehension level.
+    if (comprehensionScore >= 80 && readingSpeed > 100) {
+      return "Independent";
+    } else if (comprehensionScore >= 60) {
+      return "Instructional";
+    } else {
+      return "Frustration";
+    }
   }
 
   @override
@@ -136,11 +150,7 @@ class _QuizPageState extends State<QuizPage> {
       appBar: AppBar(
         title: const Text(
           'Quiz',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 20,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20),
         ),
         centerTitle: true,
         automaticallyImplyLeading: false,
@@ -157,11 +167,7 @@ class _QuizPageState extends State<QuizPage> {
                 '${currentIndex + 1}. ${question['question'] ?? 'No question provided'}',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const Divider(
-                height: 30,
-                thickness: 0.5,
-                color: Colors.black,
-              ),
+              const Divider(height: 30, thickness: 0.5, color: Colors.black),
               Column(
                 children: ['A', 'B', 'C', 'D'].map((option) {
                   return Padding(
@@ -198,9 +204,7 @@ class _QuizPageState extends State<QuizPage> {
           backgroundColor: const Color(0xFF15A323),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         ),
         child: const Text('NEXT'),
       ),

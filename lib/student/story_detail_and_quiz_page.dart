@@ -7,11 +7,13 @@ import 'quiz_page.dart';
 class StoryDetailAndQuizPage extends StatefulWidget {
   final String storyId;
   final String quizId;
+  final String studentId;
 
   const StoryDetailAndQuizPage({
     super.key,
     required this.storyId,
     required this.quizId, required DateTime startTime,
+    required this.studentId,
   });
 
   @override
@@ -128,16 +130,17 @@ class _StoryDetailAndQuizPageState extends State<StoryDetailAndQuizPage> {
                     child: ElevatedButton(
                       onPressed: () {
                         stopTimer(); // Stop the timer when the quiz starts
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => QuizPage(
-                              quizId: widget.quizId,
-                              readingTime: _secondsElapsed, // Pass the reading time to QuizPage
-                              passageWordCount: _wordCount, // Pass the accurate word count
-                            ),
-                          ),
-                        );
+                       Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                       builder: (context) => QuizPage(
+                       quizId: widget.quizId,
+                       studentId: widget.studentId, // Pass the studentId here
+                       readingTime: _secondsElapsed, // Existing parameter
+                       passageWordCount: _wordCount, // Existing parameter
+                                ),
+                              ),
+                            );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF15A323),

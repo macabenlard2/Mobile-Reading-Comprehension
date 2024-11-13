@@ -126,7 +126,7 @@ class _StudentAssessmentState extends State<StudentAssessment> {
                                   builder: (context) => StoryDetailAndQuizPage(
                                     storyId: storyId,
                                     quizId: quizId,
-                                    startTime: startTime, // Pass start time
+                                    startTime: startTime, studentId: '', // Pass start time
                                   ),
                                 ),
                               );
