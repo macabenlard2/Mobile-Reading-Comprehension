@@ -5,9 +5,8 @@ import 'package:reading_comprehension/widgets/background.dart';
 // Mark Miscues Page
 class MarkMiscuesPage extends StatefulWidget {
   final String studentId;
-  final String passageId;
 
-  const MarkMiscuesPage({super.key, required this.studentId, required this.passageId});
+  const MarkMiscuesPage({super.key, required this.studentId,});
 
   @override
   _MarkMiscuesPageState createState() => _MarkMiscuesPageState();
@@ -42,11 +41,10 @@ class _MarkMiscuesPageState extends State<MarkMiscuesPage> {
   }
 
   void _saveMiscueScore() async {
-    final docId = '${widget.studentId}_${widget.passageId}';
+    final docId = '${widget.studentId}_}';
 
     await FirebaseFirestore.instance.collection('MiscueRecords').doc(docId).set({
       'studentId': widget.studentId,
-      'passageId': widget.passageId,
       'miscues': miscues,
       'totalMiscueScore': totalMiscueScore,
       'timestamp': Timestamp.now(),

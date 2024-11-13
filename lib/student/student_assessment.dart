@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constant.dart';
 import 'story_detail_and_quiz_page.dart';
-import 'package:reading_comprehension/widgets/background.dart'; // Ensure this import is correct
+import 'package:reading_comprehension/widgets/background.dart';
 
 class StudentAssessment extends StatefulWidget {
   final String studentId;
@@ -126,7 +126,8 @@ class _StudentAssessmentState extends State<StudentAssessment> {
                                   builder: (context) => StoryDetailAndQuizPage(
                                     storyId: storyId,
                                     quizId: quizId,
-                                    startTime: startTime, studentId: '', // Pass start time
+                                    startTime: startTime,
+                                    studentId: widget.studentId, // Pass studentId here
                                   ),
                                 ),
                               );

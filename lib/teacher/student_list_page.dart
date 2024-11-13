@@ -20,9 +20,12 @@ class _StudentListPageState extends State<StudentListPage> {
   String _selectedGender = 'All';
   bool _isAscending = true;
 
-  // Mock fetching passage ID, replace this function with actual fetching logic
-  Future<String?> _fetchPassageId(String studentId) async {
-    return 'examplePassageId';
+  // Fetch both quizId and storyId for a student. Replace this with actual fetching logic.
+  Future<Map<String, String?>> _fetchQuizAndStoryIds(String studentId) async {
+    // Example logic; replace with actual fetching from your Firestore collections
+    var quizId = 'exampleQuizId';
+    var storyId = 'exampleStoryId';
+    return {'quizId': quizId, 'storyId': storyId};
   }
 
   @override
@@ -133,10 +136,9 @@ class _StudentListPageState extends State<StudentListPage> {
                     return const Center(child: Text('No students found.'));
                   }
 
-                 var students = snapshot.data!.docs.map((doc) {
-                     return Student.fromFirestore(doc); // Pass the DocumentSnapshot
-                    }).toList();
-
+                  var students = snapshot.data!.docs.map((doc) {
+                    return Student.fromFirestore(doc); // Pass the DocumentSnapshot
+                  }).toList();
 
                   if (_searchText.isNotEmpty) {
                     students = students.where((student) {
@@ -179,20 +181,22 @@ class _StudentListPageState extends State<StudentListPage> {
                               return;
                             }
                             print('Button pressed for student: $studentId');
-                            String? passageId = await _fetchPassageId(studentId);
-                            print('Fetched passage ID: $passageId');
-                            if (passageId != null) {
+                            Map<String, String?> ids = await _fetchQuizAndStoryIds(studentId);
+                            String? quizId = ids['quizId'];
+                            String? storyId = ids['storyId'];
+                            print('Fetched quizId: $quizId, storyId: $storyId');
+                            if (quizId != null && storyId != null) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => MarkMiscuesPage(
                                     studentId: studentId,
-                                    passageId: passageId,
+
                                   ),
                                 ),
                               );
                             } else {
-                              print('Error: passageId is null');
+                              print('Error: quizId or storyId is null');
                             }
                           },
                         ),

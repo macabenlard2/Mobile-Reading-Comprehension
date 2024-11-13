@@ -1,7 +1,7 @@
-import 'dart:async'; // Import for Timer
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:reading_comprehension/widgets/background_reading.dart'; // Import the Background widget
+import 'package:reading_comprehension/widgets/background_reading.dart';
 import 'quiz_page.dart';
 
 class StoryDetailAndQuizPage extends StatefulWidget {
@@ -12,8 +12,8 @@ class StoryDetailAndQuizPage extends StatefulWidget {
   const StoryDetailAndQuizPage({
     super.key,
     required this.storyId,
-    required this.quizId, required DateTime startTime,
-    required this.studentId,
+    required this.quizId,
+    required this.studentId, required DateTime startTime,
   });
 
   @override
@@ -21,19 +21,19 @@ class StoryDetailAndQuizPage extends StatefulWidget {
 }
 
 class _StoryDetailAndQuizPageState extends State<StoryDetailAndQuizPage> {
-  late Timer _timer; // Timer to update UI
-  int _secondsElapsed = 0; // Track the number of seconds elapsed
-  int _wordCount = 0; // Track the word count of the passage (story content)
+  late Timer _timer;
+  int _secondsElapsed = 0;
+  int _wordCount = 0;
 
   @override
   void initState() {
     super.initState();
-    startTimer(); // Start the timer when the screen loads
+    startTimer();
   }
 
   @override
   void dispose() {
-    _timer.cancel(); // Cancel the timer when the page is disposed
+    _timer.cancel();
     super.dispose();
   }
 
@@ -46,7 +46,7 @@ class _StoryDetailAndQuizPageState extends State<StoryDetailAndQuizPage> {
   }
 
   void stopTimer() {
-    _timer.cancel(); // Stop the timer
+    _timer.cancel();
   }
 
   String formatTime(int seconds) {
@@ -55,13 +55,12 @@ class _StoryDetailAndQuizPageState extends State<StoryDetailAndQuizPage> {
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  // Method to calculate word count from story content
   int calculateWordCount(String content) {
     List<String> words = content
-        .split(RegExp(r'\s+')) // Split by whitespace
-        .where((word) => word.isNotEmpty) // Remove empty elements
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
         .toList();
-    return words.length; // Return the count of words
+    return words.length;
   }
 
   @override
@@ -91,7 +90,6 @@ class _StoryDetailAndQuizPageState extends State<StoryDetailAndQuizPage> {
             var storyTitle = storyData?['title'] ?? 'No Title';
             var storyContent = storyData?['content'] ?? 'No Content';
 
-            // Ensure accurate word count by counting only the story content
             _wordCount = calculateWordCount(storyContent);
 
             return Padding(
@@ -104,7 +102,7 @@ class _StoryDetailAndQuizPageState extends State<StoryDetailAndQuizPage> {
                   Text(
                     'Time Elapsed: ${formatTime(_secondsElapsed)}',
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
-                  ), // Display timer on the screen
+                  ),
                   const SizedBox(height: 20),
                   Text(
                     storyTitle,
@@ -117,7 +115,7 @@ class _StoryDetailAndQuizPageState extends State<StoryDetailAndQuizPage> {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 20.0),
                         child: Text(
-                          storyContent, // Display the actual content
+                          storyContent,
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 16, color: Colors.black),
                         ),
@@ -129,18 +127,18 @@ class _StoryDetailAndQuizPageState extends State<StoryDetailAndQuizPage> {
                     alignment: Alignment.bottomCenter,
                     child: ElevatedButton(
                       onPressed: () {
-                        stopTimer(); // Stop the timer when the quiz starts
-                       Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                       builder: (context) => QuizPage(
-                       quizId: widget.quizId,
-                       studentId: widget.studentId, // Pass the studentId here
-                       readingTime: _secondsElapsed, // Existing parameter
-                       passageWordCount: _wordCount, // Existing parameter
-                                ),
-                              ),
-                            );
+                        stopTimer();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => QuizPage(
+                              quizId: widget.quizId,
+                              studentId: widget.studentId, // Pass studentId here
+                              readingTime: _secondsElapsed,
+                              passageWordCount: _wordCount,
+                            ),
+                          ),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF15A323),

@@ -87,7 +87,7 @@ class _QuizPageState extends State<QuizPage> {
 
     // Calculate comprehension level based on Phil-IRI standards
     String comprehensionLevel = determineComprehensionLevel(readingSpeed, comprehensionScorePercentage);
-
+          print("Student ID: ${widget.studentId}"); // Debug statement
     // Store quiz results and comprehension level
     _storeQuizResults(readingSpeed, comprehensionScorePercentage, comprehensionLevel);
 
@@ -114,7 +114,7 @@ class _QuizPageState extends State<QuizPage> {
 
   Future<void> _storeQuizResults(double readingSpeed, double comprehensionScore, String comprehensionLevel) async {
     await FirebaseFirestore.instance.collection('StudentPerformance').add({
-      'studentId': widget.studentId,
+      'studentId': widget.studentId,  // Ensure this field is added correctly
       'quizId': widget.quizId,
       'readingTime': widget.readingTime,
       'readingSpeed': readingSpeed,
