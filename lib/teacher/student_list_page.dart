@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:reading_comprehension/models/student_model.dart';
+import 'package:reading_comprehension/teacher/mark_miscues_page.dart';
 import 'package:reading_comprehension/teacher/student_detail_page.dart';
 import 'package:reading_comprehension/widgets/background.dart';
 
@@ -19,6 +20,11 @@ class _StudentListPageState extends State<StudentListPage> {
   String _selectedGender = 'All';
   bool _isAscending = true;
 
+  Future<String?> _fetchPassageId(String studentId) async {
+    // Mock passage ID for demo purposes, replace with actual logic
+    return 'examplePassageId';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -33,14 +39,10 @@ class _StudentListPageState extends State<StudentListPage> {
         ),
         backgroundColor: const Color(0xFF15A323),
         centerTitle: true,
-        automaticallyImplyLeading: true,
         leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Navigator.of(context).pop(),
-
-
-
-        ), // cutomize the back button
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: Background(
         child: Column(
@@ -131,36 +133,31 @@ class _StudentListPageState extends State<StudentListPage> {
                     return const Center(child: Text('No students found.'));
                   }
 
-                  // Convert Firestore documents to Student objects
                   var students = snapshot.data!.docs.map((doc) {
                     return Student.fromFirestore(doc.data() as Map<String, dynamic>);
                   }).toList();
 
-                  // Apply search filter
                   if (_searchText.isNotEmpty) {
                     students = students.where((student) {
-                      final fullName = '${student.firstName} ${student.lastName}'.toLowerCase();
+                      final fullName = '${student.firstName ?? ''} ${student.lastName ?? ''}'.toLowerCase();
                       return fullName.contains(_searchText.toLowerCase());
                     }).toList();
                   }
 
-                  // Apply grade filter
                   if (_selectedGrade != 'All') {
                     students = students.where((student) {
                       return student.gradeLevel == _selectedGrade;
                     }).toList();
                   }
 
-                  // Apply gender filter
                   if (_selectedGender != 'All') {
                     students = students.where((student) {
                       return student.gender == _selectedGender;
                     }).toList();
                   }
 
-                  // Sort students by first name
                   students.sort((a, b) {
-                    final comparison = a.firstName.compareTo(b.firstName);
+                    final comparison = (a.firstName ?? '').compareTo(b.firstName ?? '');
                     return _isAscending ? comparison : -comparison;
                   });
 
@@ -169,11 +166,28 @@ class _StudentListPageState extends State<StudentListPage> {
                     itemBuilder: (context, index) {
                       final student = students[index];
                       return ListTile(
-                        title: Text('${student.firstName} ${student.lastName}'),
+                        title: Text('${student.firstName ?? ''} ${student.lastName ?? ''}'),
                         subtitle: Text('Grade: ${student.gradeLevel}\nGender: ${student.gender}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.assessment, color: Colors.green),
+                          onPressed: () async {
+                            String? passageId = await _fetchPassageId(student.id ?? '');
+                            if (passageId != null && student.id != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MarkMiscuesPage(
+                                    studentId: student.id!,
+                                    passageId: passageId,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        ),
                         leading: CircleAvatar(
-                          backgroundImage: student.profilePictureUrl.isNotEmpty
-                              ? NetworkImage(student.profilePictureUrl)
+                          backgroundImage: (student.profilePictureUrl ?? '').isNotEmpty
+                              ? NetworkImage(student.profilePictureUrl!)
                               : const AssetImage('assets/images/default_profile.png') as ImageProvider,
                         ),
                         onTap: () {

@@ -25,4 +25,6 @@ class Student {
       progress: data['progress'] ?? {},
     );
   }
+
+  get id => null;
 }

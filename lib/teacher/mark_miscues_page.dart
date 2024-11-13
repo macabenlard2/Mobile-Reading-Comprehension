@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:reading_comprehension/widgets/background.dart'; // Import Background widget
+import 'package:reading_comprehension/widgets/background.dart';
 
 class MarkMiscuesPage extends StatefulWidget {
   final String studentId;
@@ -13,40 +13,46 @@ class MarkMiscuesPage extends StatefulWidget {
 }
 
 class _MarkMiscuesPageState extends State<MarkMiscuesPage> {
-  int totalMiscueScore = 0; // To track the total miscues score
-
-  @override
-  void initState() {
-    super.initState();
-    // No need to load passage content anymore
-  }
+  int totalMiscueScore = 0;
+  Map<String, int> miscues = {
+    'Mispronunciation': 0,
+    'Omission': 0,
+    'Substitution': 0,
+    'Insertion': 0,
+    'Repetition': 0,
+    'Transposition': 0,
+    'Reversal': 0,
+  };
 
   void _incrementMiscueScore(String miscueType) {
     setState(() {
-      totalMiscueScore++; // Increase total score for each miscue
+      miscues[miscueType] = (miscues[miscueType] ?? 0) + 1;
+      totalMiscueScore++;
     });
   }
 
   void _decrementMiscueScore(String miscueType) {
     setState(() {
-      if (totalMiscueScore > 0) {
-        totalMiscueScore--; // Decrease total score, but it shouldn't go below zero
+      if (miscues[miscueType]! > 0) {
+        miscues[miscueType] = miscues[miscueType]! - 1;
+        totalMiscueScore--;
       }
     });
   }
 
   void _saveMiscueScore() async {
-    // Save the total miscues score to Firestore
-    await FirebaseFirestore.instance.collection('MiscueScores').add({
+    await FirebaseFirestore.instance.collection('MiscueRecords').add({
       'studentId': widget.studentId,
       'passageId': widget.passageId,
-      'miscueScore': totalMiscueScore,
+      'miscues': miscues,
+      'totalMiscueScore': totalMiscueScore,
       'timestamp': Timestamp.now(),
     });
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Miscue score saved successfully')));
-    Navigator.pop(context); // Return to the previous screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Miscue record saved successfully')),
+    );
+    Navigator.pop(context);
   }
 
   @override
@@ -60,21 +66,13 @@ class _MarkMiscuesPageState extends State<MarkMiscuesPage> {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            // Display the total miscue score
             Text(
               'Total Miscue Score: $totalMiscueScore',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            // Buttons to increment/decrement score based on miscues
-            _buildMiscueRow('Mispronunciation'),
-            _buildMiscueRow('Omission'),
-            _buildMiscueRow('Substitution'),
-            _buildMiscueRow('Insertion'),
-            _buildMiscueRow('Repetition'),
-            _buildMiscueRow('Transposition'),
-            _buildMiscueRow('Reversal'),
-            // Add more miscue types as needed
+            for (String miscueType in miscues.keys)
+              _buildMiscueRow(miscueType),
           ],
         ),
       ),
@@ -86,14 +84,13 @@ class _MarkMiscuesPageState extends State<MarkMiscuesPage> {
     );
   }
 
-  // Helper to build the buttons for each miscue type with increment and decrement
   Widget _buildMiscueRow(String miscueType) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(miscueType, style: const TextStyle(fontSize: 18)),
+          Text('$miscueType: ${miscues[miscueType]}', style: const TextStyle(fontSize: 18)),
           Row(
             children: [
               IconButton(

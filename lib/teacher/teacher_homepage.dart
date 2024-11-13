@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reading_comprehension/teacher/student_list_page.dart';
 import 'package:reading_comprehension/teacher/teacher_drawer.dart';
 import 'package:reading_comprehension/teacher/assessment_page.dart';
 import 'package:reading_comprehension/widgets/background.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:reading_comprehension/teacher/mark_miscues_page.dart';
 
 class TeacherHomePage extends StatefulWidget {
   final String teacherId;
@@ -37,24 +35,25 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           .doc(teacherId)
           .get();
 
-      if (teacherDoc.exists) {
+      if (teacherDoc.exists && mounted) { // Check if mounted to ensure context is valid
         setState(() {
           teacherCode = teacherDoc['teacherCode'];
         });
-      } else {
+      } else if (mounted) {
         setState(() {
           teacherCode = 'No code found';
         });
       }
     } catch (e) {
-      setState(() {
-        teacherCode = 'Error fetching code';
-      });
+      if (mounted) {
+        setState(() {
+          teacherCode = 'Error fetching code';
+        });
+      }
     }
   }
 
   Future<void> _checkShowInstructionOverlay() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       // Instruction overlay check logic if needed
     });
@@ -83,14 +82,14 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
 
     if (shouldLogout == true) {
       await FirebaseAuth.instance.signOut();
-      Navigator.popUntil(context, ModalRoute.withName('/'));
+      if (mounted) Navigator.popUntil(context, ModalRoute.withName('/'));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope( // Use PopScope instead of WillPopScope
+      onPopInvoked: (bool _) async {
         if (_backButtonCount == 0) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Press back again to log out'),
@@ -98,10 +97,8 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           setState(() {
             _backButtonCount++;
           });
-          return false;
         } else {
           await _confirmLogout();
-          return false;
         }
       },
       child: Background(
@@ -197,36 +194,6 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                         ),
                         child: const Text(
                           'Student List',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => MarkMiscuesPage(
-                                studentId: 'selectedStudentId', // Student ID to be passed
-                                passageId: 'selectedPassageId', // Passage ID to be passed
-                              ),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF15A323),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 50, vertical: 20),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text(
-                          'Mark Miscues',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
