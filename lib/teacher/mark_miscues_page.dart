@@ -6,7 +6,7 @@ import 'package:reading_comprehension/widgets/background.dart';
 class MarkMiscuesPage extends StatefulWidget {
   final String studentId;
 
-  const MarkMiscuesPage({super.key, required this.studentId,});
+  const MarkMiscuesPage({super.key, required this.studentId});
 
   @override
   _MarkMiscuesPageState createState() => _MarkMiscuesPageState();
@@ -41,19 +41,28 @@ class _MarkMiscuesPageState extends State<MarkMiscuesPage> {
   }
 
   void _saveMiscueScore() async {
-    final docId = '${widget.studentId}_}';
+    final docId = '${widget.studentId}_${DateTime.now().millisecondsSinceEpoch}';
 
-    await FirebaseFirestore.instance.collection('MiscueRecords').doc(docId).set({
-      'studentId': widget.studentId,
-      'miscues': miscues,
-      'totalMiscueScore': totalMiscueScore,
-      'timestamp': Timestamp.now(),
-    });
+    try {
+      await FirebaseFirestore.instance
+          .collection('MiscueRecords')
+          .doc(docId)
+          .set({
+        'studentId': widget.studentId,
+        'miscues': miscues,
+        'totalMiscueScore': totalMiscueScore,
+        'timestamp': Timestamp.now(),
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Miscue record saved successfully')),
-    );
-    Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Miscue record saved successfully')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving record: $e')),
+      );
+    }
   }
 
   @override

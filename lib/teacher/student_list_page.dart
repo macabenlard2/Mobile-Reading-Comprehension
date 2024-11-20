@@ -202,7 +202,7 @@ class _StudentListPageState extends State<StudentListPage> {
                         ),
                         leading: CircleAvatar(
                           backgroundImage: (student.profilePictureUrl ?? '').isNotEmpty
-                              ? NetworkImage(student.profilePictureUrl!)
+                              ? NetworkImage(student.profilePictureUrl)
                               : const AssetImage('assets/images/default_profile.png') as ImageProvider,
                         ),
                         onTap: () {

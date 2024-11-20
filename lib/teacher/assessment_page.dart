@@ -86,9 +86,9 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
             bottom: TabBar(
               controller: _tabController,
               tabs: const [
-                Tab(text: 'Pretest'),
+                Tab(text: 'Pre-test'),
                 Tab(text: 'Custom'),
-                Tab(text: 'Posttest'),
+                Tab(text: 'Post test'),
               ],
               indicatorColor: Colors.yellow,
               labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -105,7 +105,7 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                   children: [
                     _buildStoryListView('pretest'),
                     _buildStoryListView('custom'),
-                    _buildStoryListView('posttest'),
+                    _buildStoryListView('post test'),
                   ],
                 ),
               ),

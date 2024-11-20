@@ -37,60 +37,66 @@ class _EditQuizScreenState extends State<EditQuizScreen> {
     }
     super.dispose();
   }
-
 Future<void> _loadQuizData() async {
   setState(() {
     _isLoading = true;
   });
 
   try {
-    // Correct query for fetching the quiz from the TeacherQuizzes collection
-    DocumentSnapshot quizSnapshot = await FirebaseFirestore.instance
+    // Fetch teacher-specific quizzes
+    DocumentSnapshot teacherQuizSnapshot = await FirebaseFirestore.instance
         .collection('Teachers')
-        .doc(widget.teacherId) // Use the teacherId
-        .collection('TeacherQuizzes') // Fetch from TeacherQuizzes subcollection
-        .doc(widget.quizId) // Fetch the specific quiz using quizId
+        .doc(widget.teacherId)
+        .collection('TeacherQuizzes')
+        .doc(widget.quizId)
         .get();
 
-    if (quizSnapshot.exists) {
-      final data = quizSnapshot.data() as Map<String, dynamic>?;
+    // Fetch default quizzes
+    DocumentSnapshot defaultQuizSnapshot = await FirebaseFirestore.instance
+        .collection('Quizzes')
+        .doc(widget.quizId)
+        .get();
 
-      setState(() {
-        _quizTitle = data?['title'] ?? 'Untitled Quiz';
-        _questions = (data?['questions'] as List<dynamic>? ?? []).map((question) {
-          return {
-            'question': question['question'] ?? '',
-            'answers': Map<String, String>.from(question['answers'] ?? {}),
-            'correctAnswer': question['correctAnswer'] ?? 'A',
-          };
-        }).toList();
+    // Initialize an empty list to store merged quiz data
+    List<Map<String, dynamic>> allQuestions = [];
 
-        _questionControllers = _questions.map((q) => TextEditingController(text: q['question'])).toList();
-
-        _answerControllers = _questions.map((q) {
-          final answers = Map<String, String>.from(q['answers'] ?? {});
-          return answers.values.map((a) => TextEditingController(text: a)).toList();
-        }).toList();
-
-        _isLoading = false;
-      });
-    } else {
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Quiz not found')),
-      );
+    if (teacherQuizSnapshot.exists) {
+      final data = teacherQuizSnapshot.data() as Map<String, dynamic>?;
+      if (data != null) {
+        final questions = List<Map<String, dynamic>>.from(data['questions'] ?? []);
+        allQuestions.addAll(questions);
+      }
     }
+
+    if (defaultQuizSnapshot.exists) {
+      final data = defaultQuizSnapshot.data() as Map<String, dynamic>?;
+      if (data != null) {
+        final questions = List<Map<String, dynamic>>.from(data['questions'] ?? []);
+        allQuestions.addAll(questions);
+      }
+    }
+
+    setState(() {
+      _quizTitle = 'Quiz Data';
+      _questions = allQuestions;
+      _questionControllers = _questions.map((q) => TextEditingController(text: q['question'])).toList();
+      _answerControllers = _questions.map((q) {
+        final answers = Map<String, String>.from(q['answers'] ?? {});
+        return answers.values.map((a) => TextEditingController(text: a)).toList();
+      }).toList();
+      _isLoading = false;
+    });
+
   } catch (e) {
     setState(() {
       _isLoading = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Failed to load quiz: $e')),
+      SnackBar(content: Text('Failed to load quizzes: $e')),
     );
   }
 }
+
 
 
   void _addQuestion() {

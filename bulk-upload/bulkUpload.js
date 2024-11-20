@@ -394,14 +394,14 @@ feeling of well-being.
       title: "A Rainy Day",
       content: `
               Nina and Ria are looking out the window.
-“I do not like getting wet in the rain,” says Nina.
-“What can we do?” asks Ria.
-“We can play house,” says Nina.
-“Or we can play tag,” says Ria.
-“Okay, let’s play tag. You’re it!” says Nina.
-Nina runs from Ria and bumps a lamp.
-“Oh no!” says Nina.
-“We must not play tag in the house.”
+  “I do not like getting wet in the rain,” says Nina.
+  “What can we do?” asks Ria.
+  “We can play house,” says Nina.
+  “Or we can play tag,” says Ria.
+  “Okay, let’s play tag. You’re it!” says Nina.
+  Nina runs from Ria and bumps a lamp.
+  “Oh no!” says Nina.
+  “We must not play tag in the house.”
 
         `,
       type: "pretest",

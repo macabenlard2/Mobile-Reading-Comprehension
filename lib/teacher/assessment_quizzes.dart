@@ -88,9 +88,9 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
             bottom: TabBar(
               controller: _tabController,
               tabs: const [
-                Tab(text: 'Pretest'),
+                Tab(text: 'Pre-test'),
                 Tab(text: 'Custom'),
-                Tab(text: 'Posttest'),
+                Tab(text: 'Post test'),
               ],
               indicatorColor: Colors.yellow,
               labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -107,7 +107,7 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
                   children: [
                     _buildQuizListView('pretest'),
                     _buildQuizListView('custom'),
-                    _buildQuizListView('posttest'),
+                    _buildQuizListView('post test'),
                   ],
                 ),
               ),

@@ -8,7 +8,7 @@ class StudentDetailPage extends StatelessWidget {
 
   const StudentDetailPage({super.key, required this.student});
 
-  // Fetch student history/logs from Firestore
+  // Fetch student performance logs from Firestore
   Stream<QuerySnapshot> fetchStudentLogs() {
     return FirebaseFirestore.instance
         .collection('StudentPerformance')
@@ -25,15 +25,12 @@ class StudentDetailPage extends StatelessWidget {
     return quizSnapshot.data()?['title'] ?? 'Unknown Quiz';
   }
 
-  // Fetch miscue records for a quiz
-  Future<List<Map<String, dynamic>>> fetchMiscueRecords(String quizId) async {
-    var miscueSnapshot = await FirebaseFirestore.instance
+  // Fetch all miscues for a student
+  Stream<QuerySnapshot> fetchStudentMiscues() {
+    return FirebaseFirestore.instance
         .collection('MiscueRecords')
-        .where('quizId', isEqualTo: quizId)
-        .get();
-    return miscueSnapshot.docs
-        .map((doc) => doc.data() as Map<String, dynamic>)
-        .toList();
+        .where('studentId', isEqualTo: student.id)
+        .snapshots();
   }
 
   @override
@@ -61,7 +58,7 @@ class StudentDetailPage extends StatelessWidget {
                         : Icon(
                             Icons.account_circle,
                             size: 90,
-                            color: Colors.grey[300],
+                            color: Colors.black,
                           ),
                     const SizedBox(height: 10),
                     Text(
@@ -156,32 +153,38 @@ class StudentDetailPage extends StatelessWidget {
                                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                                     ),
                                     const SizedBox(height: 10),
-                                    // Display Miscue Records
-                                    FutureBuilder<List<Map<String, dynamic>>>(
-                                      future: fetchMiscueRecords(logData['quizId']),
+                                    // Display Miscue Records Section
+                                    StreamBuilder<QuerySnapshot>(
+                                      stream: fetchStudentMiscues(),
                                       builder: (context, miscueSnapshot) {
                                         if (miscueSnapshot.connectionState == ConnectionState.waiting) {
                                           return const Center(child: CircularProgressIndicator());
                                         }
-                                        if (!miscueSnapshot.hasData || miscueSnapshot.data!.isEmpty) {
+                                        if (!miscueSnapshot.hasData || miscueSnapshot.data!.docs.isEmpty) {
                                           return const Text('No miscue records found.');
                                         }
                                         return Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: miscueSnapshot.data!.map((miscue) {
+                                          children: miscueSnapshot.data!.docs.map((miscueDoc) {
+                                            var miscueData = miscueDoc.data() as Map<String, dynamic>;
+                                            
+                                            // Display miscues map
+                                            Map<String, dynamic> miscuesMap = miscueData['miscues'] ?? {};
+
                                             return Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  'Miscue: ${miscue['miscueType'] ?? 'Unknown'}',
-                                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                                                ),
-                                                const SizedBox(height: 5),
-                                                Text(
-                                                  'Correction: ${miscue['correction'] ?? 'N/A'}',
-                                                  style: const TextStyle(fontSize: 14),
+                                                  'Total Miscue Score: ${miscueData['totalMiscueScore'] ?? 'N/A'}',
+                                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                                 ),
                                                 const Divider(),
+                                                ...miscuesMap.entries.map((entry) {
+                                                  return Text(
+                                                    '${entry.key}: ${entry.value}',
+                                                    style: const TextStyle(fontSize: 14),
+                                                  );
+                                                }).toList(),
                                               ],
                                             );
                                           }).toList(),
