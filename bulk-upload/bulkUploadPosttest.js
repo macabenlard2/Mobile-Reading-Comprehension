@@ -1061,17 +1061,19 @@ async function bulkUpload() {
   
   const batch = db.batch();
 
-  passages.forEach((passage) => {
-    const docRef = db.collection("Stories").doc(); 
-    batch.set(docRef, {
+  for (const passage of passages) {
+    // Add story to the Stories collection
+    const storyRef = db.collection("Stories").doc();
+    batch.set(storyRef, {
       title: passage.title,
       content: passage.content,
       type: passage.type,
       gradeLevel: passage.gradeLevel,
       set: passage.set,
-      isDefault: true // Mark this as default data
+      isDefault: true, // Mark this as default data
     });
 
+    // Prepare quiz questions
     const questions = passage.quizzes.map((quiz) => {
       const answers = {};
       quiz.options.forEach((option, index) => {
@@ -1079,19 +1081,24 @@ async function bulkUpload() {
         answers[key] = option;
       });
 
-      const correctAnswerKey = Object.keys(answers).find(key => answers[key] === quiz.correctAnswer);
+      const correctAnswerKey = Object.keys(answers).find(
+        (key) => answers[key] === quiz.correctAnswer
+      );
 
       if (!correctAnswerKey) {
-        throw new Error(`Correct answer "${quiz.correctAnswer}" not found in options for question: "${quiz.question}"`);
+        throw new Error(
+          `Correct answer ${quiz.correctAnswer} not found in options for question: ${quiz.question}`
+        );
       }
 
       return {
         question: quiz.question,
         answers: answers,
-        correctAnswer: correctAnswerKey
+        correctAnswer: correctAnswerKey,
       };
     });
 
+    // Add quiz to the Quizzes collection
     const quizRef = db.collection("Quizzes").doc();
     batch.set(quizRef, {
       title: passage.title,
@@ -1099,9 +1106,13 @@ async function bulkUpload() {
       gradeLevel: passage.gradeLevel,
       set: passage.set,
       isDefault: true, // Mark this as default data
-      questions: questions // Store all questions under the title
+      questions: questions, // Store all questions under the title
     });
-  });
+
+    // Link the story and quiz
+    batch.update(storyRef, { quizId: quizRef.id });
+    batch.update(quizRef, { storyId: storyRef.id });
+  }
 
   await batch.commit();
   console.log("Bulk upload of passages and quizzes completed.");

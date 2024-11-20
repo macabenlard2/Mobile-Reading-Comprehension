@@ -24,133 +24,110 @@ class _SignInState extends State<SignIn> {
       ),
       home: Scaffold(
         body: Background(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              const SizedBox(height: 50),
-              SizedBox(
-                height: 300,
-                width: 400,
-                child: Image.asset(
-                  "assets/images/logo.png",
-                  fit: BoxFit.fill,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 50),
+                SizedBox(
+                  height: 300, // Restored original height
+                  width: 400, // Restored original width
+                  child: Image.asset(
+                    "assets/images/logo.png",
+                    fit: BoxFit.fill,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 1.0),
-              const Text(
-                "Welcome Onboard! SignIn",
-                style: TextStyle(
-                  fontSize: 25,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 20),
+                const Text(
+                  "Welcome Onboard!",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 30),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Image.asset("assets/images/Teacher.png"),
-                  const SizedBox(width: 10), // Added spacing to match the SignUp page
-                  Container(
-                    height: 50,
-                    width: 250,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF15A323),
-                      borderRadius: BorderRadius.all(Radius.circular(50)),
-                    ),
-                    child: TextButton(
+                const SizedBox(height: 5),
+                const Text(
+                  "Sign In to Continue",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                const SizedBox(height: 40),
+                _buildButton(
+                  context,
+                  "Sign In as a Teacher",
+                  const LogInTeacher(),
+                  const Color(0xFF15A323),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  "OR",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildButton(
+                  context,
+                  "Sign In as a Student",
+                  const LogInStudent(),
+                  const Color(0xFF15A323),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Don't have an account?"),
+                    TextButton(
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const LogInTeacher()),
+                          MaterialPageRoute(builder: (context) => const SignUp()),
                         );
                       },
                       child: const Text(
-                        "Sign In as a Teacher",
+                        "Sign Up!",
                         style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
+                          color: Color.fromARGB(255, 0, 0, 0),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const Align(
-  alignment: Alignment.centerRight, // Move "OR" to the right
-  child: Padding(
-    padding: EdgeInsets.only(right: 145.0), // Optional: Add some padding for spacing
-    child: Text(
-      "OR",
-      style: TextStyle(
-        fontSize: 30,
-        fontWeight: FontWeight.bold,
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-    ),
-  ),
-),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    height: 80,
-                    width: 80,
-                    child: Image.asset(
-                      "assets/images/Person.png",
-                      fit: BoxFit.fill,
-                    ),
-                  ),
-                  const SizedBox(width: 10), // Added spacing to match the SignUp page
-                  Container(
-                    height: 50,
-                    width: 250,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF15A323),
-                      borderRadius: BorderRadius.all(Radius.circular(50)),
-                    ),
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const LogInStudent()),
-                        );
-                      },
-                      child: const Text(
-                        "Sign in as a Student",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Don't have an account?"),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const SignUp()),
-                      );
-                    },
-                    child: const Text(
-                      "Sign Up!",
-                      style: TextStyle(
-                        color: Color.fromARGB(255, 0, 0, 0),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+    );
+  }
+
+  Widget _buildButton(
+      BuildContext context, String text, Widget destination, Color color) {
+    return Container(
+      width: 300,
+      height: 50,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: TextButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => destination),
+          );
+        },
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:reading_comprehension/Screens/splash_screen.dart';
 import 'firebase_options.dart';
 import 'Screens/login_page.dart';
 
@@ -25,7 +26,7 @@ class MyApp extends StatelessWidget {
           Theme.of(context).textTheme,
         ),
       ),
-      home: const MyHomePage(),
+      home: const SplashScreen(),
     );
   }
 }

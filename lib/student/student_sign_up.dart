@@ -97,8 +97,8 @@ class _SignUpStudentState extends State<SignUpStudent> {
         password: _passwordController.text,
       );
 
-      // Register the student in Firestore
-      await FirebaseFirestore.instance.collection('Students').doc(userCredential.user!.uid).set({
+      final studentDocRef = FirebaseFirestore.instance.collection('Students').doc(userCredential.user!.uid);
+      await studentDocRef.set({
         'firstName': _firstNameController.text,
         'lastName': _lastNameController.text,
         'email': _emailController.text,
@@ -108,105 +108,102 @@ class _SignUpStudentState extends State<SignUpStudent> {
         'teacherId': _selectedTeacherId,
       });
 
-      // Automatically assign an assessment (Story and Quiz) based on screening score
+      // Determine the adjusted grade level
       int screeningScore = int.tryParse(_scoreController.text) ?? 0;
-      int gradeLevel = int.tryParse(_selectedGradeLevel ?? "0") ?? 0;
+      int studentGradeLevel = int.tryParse(_selectedGradeLevel ?? "0") ?? 0;
 
-      if (gradeLevel > 0) {
-        String assignedGradeLevel;
+      String targetGradeLevel = '';
+      if (screeningScore >= 0 && screeningScore <= 7) {
+        targetGradeLevel = (studentGradeLevel - 3).toString();
+      } else if (screeningScore >= 8 && screeningScore <= 13) {
+        targetGradeLevel = (studentGradeLevel - 2).toString();
+      } else if (screeningScore >= 14) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Testing discontinued based on the screening score.')),
+        );
+        setState(() {
+          _loading = false;
+        });
+        return;
+      }
 
-        if (screeningScore >= 0 && screeningScore <= 7) {
-          assignedGradeLevel = (gradeLevel - 3).toString(); // 3 levels lower
-        } else if (screeningScore >= 8 && screeningScore <= 13) {
-          assignedGradeLevel = (gradeLevel - 2).toString(); // 2 levels lower
-        } else {
-          assignedGradeLevel = '';
+      // Ensure unique story and quiz assignments
+      bool assigned = false;
+      if (targetGradeLevel.isNotEmpty) {
+        final assignedStories = await studentDocRef.collection('AssignedAssessments').get();
+        final assignedStoryIds = assignedStories.docs.map((doc) => doc['storyId']).toSet();
+
+        final storyQuery = await FirebaseFirestore.instance
+            .collection('Stories')
+            .where('gradeLevel', isEqualTo: 'Grade $targetGradeLevel')
+            .where('type', isEqualTo: 'pretest')
+            .get();
+
+        final quizQuery = await FirebaseFirestore.instance
+            .collection('Quizzes')
+            .where('gradeLevel', isEqualTo: 'Grade $targetGradeLevel')
+            .where('type', isEqualTo: 'pretest')
+            .get();
+
+        Map<String, List<QueryDocumentSnapshot>> storiesBySet = {};
+        for (var story in storyQuery.docs) {
+          String set = story['set'];
+          storiesBySet.putIfAbsent(set, () => []).add(story);
         }
 
-        if (assignedGradeLevel.isNotEmpty) {
-          // Fetch the corresponding story and quiz from Firestore
-          QuerySnapshot storySnapshot = await FirebaseFirestore.instance
-              .collection('Stories')
-              .where('gradeLevel', isEqualTo: assignedGradeLevel)
-              .get(); // Removed limit(1) to fetch all stories
+        Map<String, List<QueryDocumentSnapshot>> quizzesBySet = {};
+        for (var quiz in quizQuery.docs) {
+          String set = quiz['set'];
+          quizzesBySet.putIfAbsent(set, () => []).add(quiz);
+        }
 
-          QuerySnapshot quizSnapshot = await FirebaseFirestore.instance
-              .collection('Quizzes')
-              .where('gradeLevel', isEqualTo: assignedGradeLevel)
-              .get(); // Removed limit(1) to fetch all quizzes
+        List<String> sets = storiesBySet.keys.toList()..shuffle();
+        for (var set in sets) {
+          if (storiesBySet.containsKey(set) && quizzesBySet.containsKey(set)) {
+            for (var story in storiesBySet[set]!) {
+              if (assignedStoryIds.contains(story.id)) continue;
 
-          // Check if there are any stories and quizzes available
-          if (storySnapshot.docs.isNotEmpty && quizSnapshot.docs.isNotEmpty) {
-            // Randomly select a story and quiz or loop back to assign if all are used
-            int storyIndex = userCredential.user!.uid.hashCode % storySnapshot.docs.length;
-            int quizIndex = userCredential.user!.uid.hashCode % quizSnapshot.docs.length;
+              for (var quiz in quizzesBySet[set]!) {
+                if (quiz['storyId'] == story.id) {
+                  await studentDocRef.collection('AssignedAssessments').add({
+                    'storyId': story.id,
+                    'storyTitle': story['title'],
+                    'quizId': quiz.id,
+                    'quizTitle': quiz['title'],
+                    'type': 'pretest',
+                    'assignedGradeLevel': targetGradeLevel,
+                    'assignedAt': Timestamp.now(),
+                  });
 
-            DocumentSnapshot assignedStory = storySnapshot.docs[storyIndex];
-            DocumentSnapshot assignedQuiz = quizSnapshot.docs[quizIndex];
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Assigned "${story['title']}" and "${quiz['title']}" from Set $set!')),
+                  );
 
-            // Assign both story and quiz to the student
-            await FirebaseFirestore.instance
-                .collection('Students')
-                .doc(userCredential.user!.uid)
-                .collection('AssignedAssessments')
-                .add({
-              'storyId': assignedStory.id,
-              'storyTitle': assignedStory['title'],
-              'quizId': assignedQuiz.id,
-              'quizTitle': assignedQuiz['title'],
-              'assignedGradeLevel': assignedGradeLevel,
-              'assignedAt': Timestamp.now(),
-            });
+                  assigned = true;
+                  break;
+                }
+              }
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Successfully registered and assigned assessment!')),
-            );
-          } else {
-            // If no stories or quizzes available, reassign previous stories and quizzes
-            QuerySnapshot allStories = await FirebaseFirestore.instance.collection('Stories').get();
-            QuerySnapshot allQuizzes = await FirebaseFirestore.instance.collection('Quizzes').get();
-
-            if (allStories.docs.isNotEmpty && allQuizzes.docs.isNotEmpty) {
-              int storyIndex = userCredential.user!.uid.hashCode % allStories.docs.length;
-              int quizIndex = userCredential.user!.uid.hashCode % allQuizzes.docs.length;
-
-              DocumentSnapshot assignedStory = allStories.docs[storyIndex];
-              DocumentSnapshot assignedQuiz = allQuizzes.docs[quizIndex];
-
-              // Assign the reused story and quiz to the student
-              await FirebaseFirestore.instance
-                  .collection('Students')
-                  .doc(userCredential.user!.uid)
-                  .collection('AssignedAssessments')
-                  .add({
-                'storyId': assignedStory.id,
-                'storyTitle': assignedStory['title'],
-                'quizId': assignedQuiz.id,
-                'quizTitle': assignedQuiz['title'],
-                'assignedGradeLevel': assignedGradeLevel,
-                'assignedAt': Timestamp.now(),
-              });
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Successfully registered and assigned reused assessment!')),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('No suitable story or quiz found for this grade level.')),
-              );
+              if (assigned) break;
             }
           }
+
+          if (assigned) break;
         }
       }
 
-      // Show success message and redirect to login
+      if (!assigned) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No new stories or quizzes available for the adjusted grade level.')),
+        );
+      }
+
+      // Redirect to login
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Successfully registered! Redirecting to login...')),
       );
 
       await Future.delayed(const Duration(seconds: 2));
-
-      // Redirect to StudentLogin page
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LogInStudent()),
         (route) => false,

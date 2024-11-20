@@ -57,3 +57,9 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1' // Ensure this version or a newer one is included
+    implementation "androidx.core:core-splashscreen:1.0.0"
+}
+
