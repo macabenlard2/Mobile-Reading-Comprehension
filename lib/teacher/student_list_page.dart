@@ -142,7 +142,7 @@ class _StudentListPageState extends State<StudentListPage> {
 
                   if (_searchText.isNotEmpty) {
                     students = students.where((student) {
-                      final fullName = '${student.firstName ?? ''} ${student.lastName ?? ''}'.toLowerCase();
+                      final fullName = '${student.firstName} ${student.lastName}'.toLowerCase();
                       return fullName.contains(_searchText.toLowerCase());
                     }).toList();
                   }
@@ -160,7 +160,7 @@ class _StudentListPageState extends State<StudentListPage> {
                   }
 
                   students.sort((a, b) {
-                    final comparison = (a.firstName ?? '').compareTo(b.firstName ?? '');
+                    final comparison = a.firstName.compareTo(b.firstName);
                     return _isAscending ? comparison : -comparison;
                   });
 
@@ -171,15 +171,11 @@ class _StudentListPageState extends State<StudentListPage> {
                       final studentId = student.id;
 
                       return ListTile(
-                        title: Text('${student.firstName ?? ''} ${student.lastName ?? ''}'),
+                        title: Text('${student.firstName} ${student.lastName}'),
                         subtitle: Text('Grade: ${student.gradeLevel}\nGender: ${student.gender}'),
                         trailing: IconButton(
                           icon: const Icon(Icons.book, color: Colors.black),
                           onPressed: () async {
-                            if (studentId == null) {
-                              print('Error: studentId is null');
-                              return;
-                            }
                             print('Button pressed for student: $studentId');
                             Map<String, String?> ids = await _fetchQuizAndStoryIds(studentId);
                             String? quizId = ids['quizId'];
@@ -201,7 +197,7 @@ class _StudentListPageState extends State<StudentListPage> {
                           },
                         ),
                         leading: CircleAvatar(
-                          backgroundImage: (student.profilePictureUrl ?? '').isNotEmpty
+                          backgroundImage: (student.profilePictureUrl).isNotEmpty
                               ? NetworkImage(student.profilePictureUrl)
                               : const AssetImage('assets/images/default_profile.png') as ImageProvider,
                         ),

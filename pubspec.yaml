@@ -46,7 +46,10 @@ dependencies:
   firebase_app_check: ^0.3.1
   flutter_animated_splash: ^0.0.10
   flutter_native_splash: 2.4.1
-
+  fl_chart: ^1.0.0
+  pdf: ^3.6.0 
+  printing: ^5.6.0 
+  flutter_inappwebview: ^6.1.5
 
 
 

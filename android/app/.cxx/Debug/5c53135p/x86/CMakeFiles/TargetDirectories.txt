@@ -1,0 +1,2 @@
+C:/reading_comprehension/android/app/.cxx/Debug/5c53135p/x86/CMakeFiles/edit_cache.dir
+C:/reading_comprehension/android/app/.cxx/Debug/5c53135p/x86/CMakeFiles/rebuild_cache.dir

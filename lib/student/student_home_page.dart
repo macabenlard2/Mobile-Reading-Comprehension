@@ -6,7 +6,7 @@ import 'student_assessment.dart';
 import 'package:reading_comprehension/widgets/background.dart'; // Make sure to import the Background widget
 
 class StudentHomePage extends StatefulWidget {
-  const StudentHomePage({super.key});
+  const StudentHomePage({super.key, required String studentId});
 
   @override
   State<StudentHomePage> createState() => _StudentHomePageState();

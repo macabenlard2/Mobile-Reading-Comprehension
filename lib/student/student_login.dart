@@ -45,7 +45,7 @@ class _LogInStudentState extends State<LogInStudent> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const StudentHomePage(),
+              builder: (context) => const StudentHomePage(studentId: '',),
             ),
           );
         } else {

@@ -264,18 +264,4 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
     // Logic to update the story and associated quiz title in Firestore
   }
 
-  void _navigateToStoryDetail(String docId, String title, String content, bool isTeacherStory) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => StoryDetailPage(
-          docId: docId,
-          title: title,
-          content: content,
-          isTeacherStory: isTeacherStory,
-          teacherId: isTeacherStory ? widget.teacherId : null,
-        ),
-      ),
-    );
-  }
 }
