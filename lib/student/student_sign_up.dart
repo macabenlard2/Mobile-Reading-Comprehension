@@ -4,6 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:reading_comprehension/widgets/background.dart';
 import 'package:reading_comprehension/student/student_login.dart'; // Import the StudentLogin page
 import 'package:flutter/services.dart'; // Import for TextInputFormatter
+import 'package:reading_comprehension/utils/logger.dart';// Import the logger utility
+import 'package:reading_comprehension/utils/school_year_util.dart';
+
+
 
 class SignUpStudent extends StatefulWidget {
   const SignUpStudent({super.key});
@@ -20,6 +24,9 @@ class _SignUpStudentState extends State<SignUpStudent> {
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _teacherCodeController = TextEditingController();
   final TextEditingController _scoreController = TextEditingController();
+  String? _selectedSchoolId;
+  String? _selectedSchoolName;
+  List<DocumentSnapshot> _availableTeachers = [];
   String? _selectedTeacherId;
   String? _selectedGradeLevel;
   String? _selectedGender;
@@ -28,6 +35,8 @@ class _SignUpStudentState extends State<SignUpStudent> {
   bool _loading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _signupCompleted = false; 
+
 
   @override
   void initState() {
@@ -56,17 +65,22 @@ class _SignUpStudentState extends State<SignUpStudent> {
     });
   }
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _teacherCodeController.dispose();
-    _scoreController.dispose();
-    super.dispose();
+@override
+void dispose() {
+  if (!_signupCompleted) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    currentUser?.delete(); // delete unfinished account
   }
+  _emailController.dispose();
+  _passwordController.dispose();
+  _confirmPasswordController.dispose();
+  _firstNameController.dispose();
+  _lastNameController.dispose();
+  _teacherCodeController.dispose();
+  _scoreController.dispose();
+  super.dispose();
+}
+
 
   void _addListeners() {
     _emailController.addListener(_validateInputs);
@@ -78,152 +92,211 @@ class _SignUpStudentState extends State<SignUpStudent> {
     _scoreController.addListener(_validateInputs);
   }
 
-  Future<void> signUp() async {
+Future<bool> isEmailAlreadyUsed(String email) async {
+  final methods = await FirebaseAuth.instance.fetchSignInMethodsForEmail(email);
+  return methods.isNotEmpty;
+}
+
+Future<void> signUp() async {
+  if (_isButtonDisabled) return;
+
   setState(() {
     _loading = true;
   });
 
+  final email = _emailController.text.trim();
+
+  // ✅ 1. Check if email is already used
+  if (await isEmailAlreadyUsed(email)) {
+    setState(() => _loading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("This email is already in use.")),
+    );
+    return;
+  }
+
   try {
-    // Validate teacher code before creating the user
-    final teacherDoc = await FirebaseFirestore.instance
-        .collection('Teachers')
-        .doc(_selectedTeacherId)
-        .get();
-
-    if (teacherDoc.exists && teacherDoc['teacherCode'] == _teacherCodeController.text) {
-      // Proceed with user creation only if the teacher code is valid
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
-
-      final studentDocRef = FirebaseFirestore.instance.collection('Students').doc(userCredential.user!.uid);
-      await studentDocRef.set({
-        'firstName': _firstNameController.text,
-        'lastName': _lastNameController.text,
-        'email': _emailController.text,
-        'gradeLevel': _selectedGradeLevel,
-        'gender': _selectedGender,
-        'score': _scoreController.text,
-        'teacherId': _selectedTeacherId,
-      });
-
-      // Determine the adjusted grade level
-      int screeningScore = int.tryParse(_scoreController.text) ?? 0;
-      int studentGradeLevel = int.tryParse(_selectedGradeLevel ?? "0") ?? 0;
-
-      String targetGradeLevel = '';
-      if (screeningScore >= 0 && screeningScore <= 7) {
-        targetGradeLevel = (studentGradeLevel - 3).toString();
-      } else if (screeningScore >= 8 && screeningScore <= 13) {
-        targetGradeLevel = (studentGradeLevel - 2).toString();
-      } else if (screeningScore >= 14) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Testing discontinued based on the screening score.')),
-        );
-        setState(() {
-          _loading = false;
-        });
-        return;
-      }
-
-      // Ensure unique story and quiz assignments
-      bool assigned = false;
-      if (targetGradeLevel.isNotEmpty) {
-        final assignedStories = await studentDocRef.collection('AssignedAssessments').get();
-        final assignedStoryIds = assignedStories.docs.map((doc) => doc['storyId']).toSet();
-
-        final storyQuery = await FirebaseFirestore.instance
-            .collection('Stories')
-            .where('gradeLevel', isEqualTo: 'Grade $targetGradeLevel')
-            .where('type', isEqualTo: 'pretest')
-            .get();
-
-        final quizQuery = await FirebaseFirestore.instance
-            .collection('Quizzes')
-            .where('gradeLevel', isEqualTo: 'Grade $targetGradeLevel')
-            .where('type', isEqualTo: 'pretest')
-            .get();
-
-        Map<String, List<QueryDocumentSnapshot>> storiesBySet = {};
-        for (var story in storyQuery.docs) {
-          String set = story['set'];
-          storiesBySet.putIfAbsent(set, () => []).add(story);
-        }
-
-        Map<String, List<QueryDocumentSnapshot>> quizzesBySet = {};
-        for (var quiz in quizQuery.docs) {
-          String set = quiz['set'];
-          quizzesBySet.putIfAbsent(set, () => []).add(quiz);
-        }
-
-        List<String> sets = storiesBySet.keys.toList()..shuffle();
-        for (var set in sets) {
-          if (storiesBySet.containsKey(set) && quizzesBySet.containsKey(set)) {
-            for (var story in storiesBySet[set]!) {
-              if (assignedStoryIds.contains(story.id)) continue;
-
-              for (var quiz in quizzesBySet[set]!) {
-                if (quiz['storyId'] == story.id) {
-                  await studentDocRef.collection('AssignedAssessments').add({
-                    'storyId': story.id,
-                    'storyTitle': story['title'],
-                    'quizId': quiz.id,
-                    'quizTitle': quiz['title'],
-                    'type': 'pretest',
-                    'assignedGradeLevel': targetGradeLevel,
-                    'assignedAt': Timestamp.now(),
-                  });
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Assigned "${story['title']}" and "${quiz['title']}" from Set $set!')),
-                  );
-
-                  assigned = true;
-                  break;
-                }
-              }
-
-              if (assigned) break;
-            }
-          }
-
-          if (assigned) break;
-        }
-      }
-
-      if (!assigned) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No new stories or quizzes available for the adjusted grade level.')),
-        );
-      }
-
-      // Redirect to login
+    // ✅ 2. Validate Teacher Code
+    final teacherDoc = await FirebaseFirestore.instance.collection('Teachers').doc(_selectedTeacherId).get();
+    if (!teacherDoc.exists || teacherDoc['teacherCode'] != _teacherCodeController.text.trim()) {
+      setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Successfully registered! Redirecting to login...')),
+        const SnackBar(content: Text("Teacher code does not match selected teacher.")),
       );
-
-      await Future.delayed(const Duration(seconds: 2));
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LogInStudent()),
-        (route) => false,
-      );
-    } else {
-      setState(() {
-        _errorMessage = 'Invalid teacher code. Please check and try again.';
-      });
+      return;
     }
+
+    // ✅ 3. Create Firebase User
+    final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      email: email,
+      password: _passwordController.text.trim(),
+    );
+
+    final user = userCredential.user;
+    if (user == null) throw Exception("User creation failed.");
+
+    await user.sendEmailVerification();
+
+    final userId = user.uid;
+    final schoolYear = await getCurrentSchoolYear();
+
+    final screeningScore = int.tryParse(_scoreController.text) ?? 0;
+
+    // ✅ 4. Store data in Firestore
+    await FirebaseFirestore.instance.collection('Students').doc(userId).set({
+      'firstName': _firstNameController.text.trim(),
+      'lastName': _lastNameController.text.trim(),
+      'email': email,
+      'teacherId': _selectedTeacherId,
+      'teacherCode': _teacherCodeController.text.trim(),
+      'gradeLevel': _selectedGradeLevel,
+      'gender': _selectedGender,
+      'schoolId': _selectedSchoolId,
+      'schoolName': _selectedSchoolName,
+      'screeningScore': screeningScore,
+      'pretestCompleted': false,
+      'posttestAssigned': false,
+      'createdAt': FieldValue.serverTimestamp(),
+      'schoolYear': schoolYear,
+       
+    });
+
+    // ✅ 5. Mark signup as complete to avoid deletion
+    _signupCompleted = true;
+
+    // ✅ 6. Log success
+    await logAction("New student registered: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}");
+
+    await assignPretest(userId, screeningScore, _selectedGradeLevel!, schoolYear);
+
+    setState(() => _loading = false);
+
+    // ✅ 7. Show success dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Verify Your Email"),
+        content: const Text("A verification link has been sent to your email. Please verify before logging in."),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const LogInStudent()),
+              );
+            },
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
   } catch (e) {
     setState(() {
-      _errorMessage = 'Registration failed: ${e.toString()}';
-    });
-  } finally {
-    setState(() {
       _loading = false;
+      _errorMessage = 'Registration failed. Please try again.';
     });
+
+    // ✅ Log failure
+    await logAction("Student sign-up failed for $email: $e");
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_errorMessage!)),
+    );
   }
 }
 
+
+
+
+Future<void> assignPretest(String userId, int screeningScore, String gradeLevel, String schoolYear) async {
+  // Skip assignments for scores 14 or above
+  if (screeningScore >= 14) {
+    return; // No assignment for scores 14 or above
+  }
+
+  // Adjust grade level based on the Phil-IRI framework
+  int adjustedGradeLevel;
+  if (screeningScore <= 7) {
+    adjustedGradeLevel = int.parse(gradeLevel) - 3; // 3 grade levels below current grade
+  } else {
+    adjustedGradeLevel = int.parse(gradeLevel) - 2; // 2 grade levels below current grade
+  }
+
+  // Clamp the adjusted grade level to valid bounds (e.g., Grade 1 to 6)
+  adjustedGradeLevel = adjustedGradeLevel.clamp(1, 6);
+
+  // Fetch global assignment counts for sets
+  final globalAssignmentsDoc = await FirebaseFirestore.instance
+      .collection('GlobalAssignments')
+      .doc('assignments')
+      .get();
+
+  if (!globalAssignmentsDoc.exists) {
+    throw Exception('Global assignments data not found!');
+  }
+
+  final assignmentsData = globalAssignmentsDoc.data();
+  if (assignmentsData == null) {
+    throw Exception('Assignments data is empty!');
+  }
+
+  // Determine the least assigned set
+  final sets = ['A', 'B', 'C', 'D'];
+  String leastAssignedSet = sets.first;
+  int leastAssignedCount = assignmentsData['Set A'] ?? 0;
+
+  for (final set in sets) {
+    final currentCount = assignmentsData['Set $set'] ?? 0;
+    if (currentCount < leastAssignedCount) {
+      leastAssignedSet = set;
+      leastAssignedCount = currentCount;
+    }
+  }
+
+  // Increment the count for the selected set in GlobalAssignments
+  await FirebaseFirestore.instance
+      .collection('GlobalAssignments')
+      .doc('assignments')
+      .update({'Set $leastAssignedSet': FieldValue.increment(1)});
+
+  // Fetch the appropriate story and quiz based on set and grade level
+  final storyQuery = await FirebaseFirestore.instance
+      .collection('Stories')
+      .where('set', isEqualTo: 'Set $leastAssignedSet')
+      .where('type', isEqualTo: 'pretest')
+      .where('gradeLevel', isEqualTo: 'Grade $adjustedGradeLevel')
+      .limit(1)
+      .get();
+
+  final quizQuery = await FirebaseFirestore.instance
+      .collection('Quizzes')
+      .where('set', isEqualTo: 'Set $leastAssignedSet')
+      .where('storyId', isEqualTo: storyQuery.docs.first.id)
+      .where('type', isEqualTo: 'pretest')
+      .limit(1)
+      .get();
+
+  // Check if matching story and quiz exist
+  if (storyQuery.docs.isEmpty || quizQuery.docs.isEmpty) {
+    throw Exception('No matching stories or quizzes found for Set $leastAssignedSet and Grade $adjustedGradeLevel');
+  }
+
+  final storyDoc = storyQuery.docs.first.data();
+  final quizDoc = quizQuery.docs.first.data();
+
+  // Assign the story and quiz to the student
+  await FirebaseFirestore.instance.collection('Students').doc(userId).collection('AssignedAssessments').add({
+    'assignedAt': FieldValue.serverTimestamp(),
+    'assignedGradeLevel': 'Grade $adjustedGradeLevel',
+    'set': leastAssignedSet,
+    'type': 'Pretest',
+    'quizId': quizQuery.docs.first.id,
+    'storyId': storyQuery.docs.first.id,
+    'quizTitle': quizDoc['title'],
+    'storyTitle': storyDoc['title'],
+    'schoolYear': schoolYear,
+    
+  });
+}
 
 
   void _validateInputs() {
@@ -238,6 +311,8 @@ class _SignUpStudentState extends State<SignUpStudent> {
           _selectedGradeLevel != null &&
           _selectedGender != null &&
           _scoreController.text.isNotEmpty;
+          _isButtonDisabled = isFieldsNotEmpty && _selectedSchoolId != null;
+          
 
       bool isTeacherCodeValid = _teacherCodeController.text.length == 6;
       bool arePasswordsMatching = _passwordController.text == _confirmPasswordController.text;
@@ -264,13 +339,27 @@ class _SignUpStudentState extends State<SignUpStudent> {
       resizeToAvoidBottomInset: true,
       body: Background(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 20.0),
+          child: Center(
+  child: Container(
+    padding: const EdgeInsets.all(20),
+    margin: const EdgeInsets.symmetric(horizontal: 10),
+    decoration: BoxDecoration(
+      color: Colors.white, // makes the form readable
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black12,
+          blurRadius: 10,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                "Create Your Account",
+                "Student Registration",
                 style: TextStyle(
                   fontSize: 29,
                   fontWeight: FontWeight.w600,
@@ -311,48 +400,95 @@ class _SignUpStudentState extends State<SignUpStudent> {
                 },
               ),
               const SizedBox(height: 20),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.email),
-                  labelText: "Email Address",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('Teachers').snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+                   StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance.collection('Schools').orderBy('name').snapshots(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                          final schools = snapshot.data!.docs;
+                          return DropdownButtonFormField<String>(
+                            hint: const Text("Select School"),
+                            value: _selectedSchoolId,
+                            items: schools.map((doc) {
+                              return DropdownMenuItem<String>(
+                                value: doc.id,
+                                child: Text(doc['name']),
+                              );
+                            }).toList(),
+                            onChanged: (schoolId) async {
+                              setState(() {
+                                _selectedSchoolId = schoolId;
+                                _selectedSchoolName = schools.firstWhere((doc) => doc.id == schoolId)['name'];
+                                _selectedTeacherId = null; // Reset teacher selection
+                                _validateInputs();
+                              });
+                              
+                              // Load teachers for selected school
+                              if (schoolId != null) {
+                                final teachersQuery = await FirebaseFirestore.instance
+                                    .collection('Teachers')
+                                    .where('schoolId', isEqualTo: schoolId)
+                                    .get();
+                                    
+                                setState(() {
+                                  _availableTeachers = teachersQuery.docs;
+                                });
+                              }
+                            },
+                            validator: (value) => value == null ? 'Please select a school' : null,
+                          );
+                        },
+                      ),
 
-                  var teachers = snapshot.data!.docs;
-                  return DropdownButtonFormField<String>(
-                    hint: const Text("Select Teacher"),
-                    items: teachers.map((doc) {
-                      return DropdownMenuItem<String>(
-                        value: doc.id,
-                        child: Text('${doc['firstname']} ${doc['lastname']}'),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedTeacherId = value;
-                        _validateInputs();
-                      });
-                    },
-                  );
-                },
+          const SizedBox(height: 20),
+              TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.email),
+                labelText: "Parent's Email Address",
+                helperText:"Email Verification Will Be Sent",
+                helperStyle: (TextStyle(color: Colors.grey)),
+                border: OutlineInputBorder(),
+                
               ),
+            ),
+
+              const SizedBox(height: 20),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('Teachers').snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    var teachers = snapshot.data!.docs;
+                                  return DropdownButtonFormField<String>(
+                hint: const Text("Select Teacher"),
+                value: _selectedTeacherId,
+                items: _availableTeachers.map((doc) {
+                  return DropdownMenuItem<String>(
+                    value: doc.id,
+                    child: Text('${doc['firstname']} ${doc['lastname']}'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedTeacherId = value;
+                    _validateInputs();
+                  });
+                },
+                validator: (value) => _availableTeachers.isEmpty 
+                    ? 'No teachers available for selected school'
+                    : value == null ? 'Please select a teacher' : null,
+              );
+                                },
+                ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _teacherCodeController,
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
                   LengthLimitingTextInputFormatter(6),
-                  UpperCaseTextFormatter(), // Custom TextInputFormatter to automatically convert to uppercase
                 ],
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.code),
@@ -364,7 +500,7 @@ class _SignUpStudentState extends State<SignUpStudent> {
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 hint: const Text("Select Grade Level"),
-                items: <String>['5', '6'].map((String value) {
+                items: <String>['4', '5', '6'].map((String value) {
                   return DropdownMenuItem<String>(
                     value: value,
                     child: Text('Grade $value'),
@@ -378,7 +514,7 @@ class _SignUpStudentState extends State<SignUpStudent> {
                 },
               ),
               const SizedBox(height: 20),
-              TextFormField(
+             TextFormField(
                 controller: _scoreController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
@@ -386,8 +522,16 @@ class _SignUpStudentState extends State<SignUpStudent> {
                   labelText: "Screening Score",
                   border: OutlineInputBorder(),
                 ),
-                onChanged: (_) => _validateInputs(),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
+                ],
+                onChanged: (value) {
+              
+                  _validateInputs();
+                },
               ),
+
               const SizedBox(height: 20),
               TextFormField(
                 controller: _passwordController,
@@ -442,27 +586,36 @@ class _SignUpStudentState extends State<SignUpStudent> {
                   color: Colors.green,
                 ),
               if (!_loading)
-                ElevatedButton(
-                  onPressed: _isButtonDisabled ? null : signUp,
-                  child: const Text("Sign Up"),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(50)),
+                      ),
+                    ),
+                    onPressed: _isButtonDisabled ? null : signUp,
+                    child: const Text(
+                      "Sign Up",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
+    ),
+      ),
     );
   }
 }
 
-// Custom UpperCase TextInputFormatter
-class UpperCaseTextFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    return newValue.copyWith(
-      text: newValue.text.toUpperCase(),
-      selection: newValue.selection,
-    );
-  }
-}
+  

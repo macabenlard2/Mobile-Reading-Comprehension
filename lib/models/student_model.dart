@@ -7,7 +7,13 @@ class Student {
   final String gradeLevel;
   final String gender;
   final String profilePictureUrl;
+  final String email;
   final Map<String, dynamic> progress;
+
+  var schoolYear;
+
+  String teacherId;
+
 
   Student({
     required this.id, // Include id in the constructor
@@ -17,6 +23,9 @@ class Student {
     required this.gender,
     required this.profilePictureUrl,
     required this.progress,
+    required this.email,
+    required this.schoolYear,
+    required this.teacherId,
   });
 
   factory Student.fromFirestore(DocumentSnapshot doc) { // Use DocumentSnapshot
@@ -29,6 +38,12 @@ class Student {
       gender: data['gender'] ?? 'Unknown',
       profilePictureUrl: data['profilePictureUrl'] ?? '',
       progress: data['progress'] ?? {},
+      email: data['email'] ?? 'N/A', 
+      schoolYear: data['schoolYear'] ?? 'Unknown',
+      teacherId: data['teacherId'] ?? 'Unknown',
+      
     );
   }
+
+  
 }

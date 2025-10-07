@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
-
+import 'package:reading_comprehension/utils/school_year_util.dart';
 class GenderPieChart extends StatefulWidget {
   final String teacherId;
   const GenderPieChart({super.key, required this.teacherId});
@@ -26,44 +26,46 @@ class _GenderPieChartState extends State<GenderPieChart> {
     fetchGenderCounts();
   }
 
-  Future<void> fetchGenderCounts() async {
-    try {
-      final students = await FirebaseFirestore.instance
-          .collection('Students')
-          .where('teacherId', isEqualTo: widget.teacherId)
-          .get();
+Future<void> fetchGenderCounts() async {
+  try {
+    final schoolYear = await getCurrentSchoolYear(); // ✅ dynamic year
 
+    final students = await FirebaseFirestore.instance
+        .collection('Students')
+        .where('teacherId', isEqualTo: widget.teacherId)
+        .where('schoolYear', isEqualTo: schoolYear) // ✅ filter by school year
+        .get();
 
-      for (var doc in students.docs) {
-        final data = doc.data();
-        final gender = data['gender']?.toString().toLowerCase();
-        final grade = data['gradeLevel']?.toString();
+    for (var doc in students.docs) {
+      final data = doc.data();
+      final gender = data['gender']?.toString().toLowerCase();
+      final grade = data['gradeLevel']?.toString();
 
-        if (gender != null && grade != null) {
-          if (!gradeLevels.contains(grade)) {
-            gradeLevels.add(grade);
-            malePerGrade[grade] = 0;
-            femalePerGrade[grade] = 0;
-          }
+      if (gender != null && grade != null) {
+        if (!gradeLevels.contains(grade)) {
+          gradeLevels.add(grade);
+          malePerGrade[grade] = 0;
+          femalePerGrade[grade] = 0;
+        }
 
-          if (gender == 'male') {
-            overallMale++;
-            malePerGrade[grade] = malePerGrade[grade]! + 1;
-          } else if (gender == 'female') {
-            overallFemale++;
-            femalePerGrade[grade] = femalePerGrade[grade]! + 1;
-          }
+        if (gender == 'male') {
+          overallMale++;
+          malePerGrade[grade] = malePerGrade[grade]! + 1;
+        } else if (gender == 'female') {
+          overallFemale++;
+          femalePerGrade[grade] = femalePerGrade[grade]! + 1;
         }
       }
-
-      gradeLevels.sort(); // Optional for consistency
-
-      setState(() => isLoading = false);
-    } catch (e) {
-      print("Error fetching gender data: $e");
-      setState(() => isLoading = false);
     }
+
+    gradeLevels.sort();
+    setState(() => isLoading = false);
+  } catch (e) {
+    print("Error fetching gender data: $e");
+    setState(() => isLoading = false);
   }
+}
+
 
   String _getPercentage(int count, int total) {
     if (total == 0) return '0';

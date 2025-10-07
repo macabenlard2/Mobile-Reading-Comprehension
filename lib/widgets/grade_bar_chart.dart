@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,7 +5,34 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/rendering.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'dart:ui';
+import 'package:reading_comprehension/utils/school_year_util.dart';
 
+
+Widget glassCard({required Widget child}) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(16),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color.fromRGBO(255, 255, 255, 0.2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: child,
+      ),
+    ),
+  );
+}
 
 class GradeBarChart extends StatefulWidget {
   final bool isTeacher;
@@ -23,14 +49,14 @@ class GradeBarChart extends StatefulWidget {
 }
 
 class _GradeBarChartState extends State<GradeBarChart> {
-  int g5PreInd = 0, g5PreInst = 0, g5PreFrus = 0;
-  int g5PostInd = 0, g5PostInst = 0, g5PostFrus = 0;
-  int g6PreInd = 0, g6PreInst = 0, g6PreFrus = 0;
-  int g6PostInd = 0, g6PostInst = 0, g6PostFrus = 0;
-
-  final GlobalKey _chartKey5 = GlobalKey();
-  final GlobalKey _chartKey6 = GlobalKey();
+  final GlobalKey _pretestChartKey = GlobalKey();
+  final GlobalKey _posttestChartKey = GlobalKey();
   bool isLoading = true;
+
+  int g5PreInd = 0, g5PreInst = 0, g5PreFrus = 0;
+  int g6PreInd = 0, g6PreInst = 0, g6PreFrus = 0;
+  int g5PostInd = 0, g5PostInst = 0, g5PostFrus = 0;
+  int g6PostInd = 0, g6PostInst = 0, g6PostFrus = 0;
 
   @override
   void initState() {
@@ -40,9 +66,12 @@ class _GradeBarChartState extends State<GradeBarChart> {
 
   Future<void> fetchData() async {
     try {
+      final schoolYear = await getCurrentSchoolYear();
+
       final students = await FirebaseFirestore.instance
           .collection('Students')
           .where('teacherId', isEqualTo: widget.teacherId)
+           .where('schoolYear', isEqualTo: schoolYear)
           .get();
 
       if (students.docs.isEmpty) {
@@ -60,22 +89,17 @@ class _GradeBarChartState extends State<GradeBarChart> {
           final fetchPerformance = FirebaseFirestore.instance
               .collection('StudentPerformance')
               .where('studentId', isEqualTo: studentId)
+              .where('schoolYear', isEqualTo: schoolYear)
               .get()
               .then((performances) {
             for (var doc in performances.docs) {
-              final typeRaw = doc.data()['type'];
-              final profileRaw = doc.data()['oralReadingProfile'];
-              if (typeRaw == null || profileRaw == null) continue;
-              final type = typeRaw.toString().toLowerCase().trim();
-              final profile = profileRaw.toString().trim();
+              final type = doc['type']?.toString().toLowerCase().trim();
+              final profile = doc['oralReadingProfile']?.toString().trim();
 
-              if (grade == "5") {
-                if (type == "pretest") _inc(profile, true, true);
-                if (type == "post test" || type == "posttest") _inc(profile, true, false);
-              } else if (grade == "6") {
-                if (type == "pretest") _inc(profile, false, true);
-                if (type == "post test" || type == "posttest") _inc(profile, false, false);
-              }
+              if (type == null || profile == null) continue;
+
+              if (type == "pretest") _inc(profile, grade!, true);
+              if (type == "posttest" || type == "post test") _inc(profile, grade!, false);
             }
           });
 
@@ -83,188 +107,149 @@ class _GradeBarChartState extends State<GradeBarChart> {
         }
       }
 
-      if (fetches.isEmpty) {
-        setState(() => isLoading = false);
-        return;
-      }
-
       await Future.wait(fetches);
     } catch (e) {
-      print("Error while fetching data: $e");
+      print("Error: $e");
     }
 
-    if (mounted) {
-      setState(() => isLoading = false);
+    if (mounted) setState(() => isLoading = false);
+  }
+
+  void _inc(String profile, String grade, bool isPre) {
+    final p = profile.toLowerCase();
+    if (grade == "5") {
+      if (isPre) {
+        if (p == "independent") g5PreInd++;
+        if (p == "instructional") g5PreInst++;
+        if (p == "frustration") g5PreFrus++;
+      } else {
+        if (p == "independent") g5PostInd++;
+        if (p == "instructional") g5PostInst++;
+        if (p == "frustration") g5PostFrus++;
+      }
+    } else if (grade == "6") {
+      if (isPre) {
+        if (p == "independent") g6PreInd++;
+        if (p == "instructional") g6PreInst++;
+        if (p == "frustration") g6PreFrus++;
+      } else {
+        if (p == "independent") g6PostInd++;
+        if (p == "instructional") g6PostInst++;
+        if (p == "frustration") g6PostFrus++;
+      }
     }
   }
 
-  void _inc(String profile, bool g5, bool pre) {
-    final profileLower = profile.toLowerCase();
-    if (profileLower == "independent") {
-      g5 ? (pre ? g5PreInd++ : g5PostInd++) : (pre ? g6PreInd++ : g6PostInd++);
-    } else if (profileLower == "instructional") {
-      g5 ? (pre ? g5PreInst++ : g5PostInst++) : (pre ? g6PreInst++ : g6PostInst++);
-    } else if (profileLower == "frustration") {
-      g5 ? (pre ? g5PreFrus++ : g5PostFrus++) : (pre ? g6PreFrus++ : g6PostFrus++);
-    }
-  }
+  Widget buildGroupedChart({
+    required String title,
+    required GlobalKey chartKey,
+    required List<int> grade5Counts,
+    required List<int> grade6Counts,
+  }) {
+    final total = grade5Counts.fold(0, (a, b) => a + b) + grade6Counts.fold(0, (a, b) => a + b);
+    final colors = [
+      Colors.blue,
+      Colors.red,
+      Colors.purple,
+      Colors.yellow.shade700,
+    ];
 
-  double _percentage(int value, int total) {
-    if (total == 0) return 0;
-    return (value / total * 100);
-  }
-
-  List<BarChartGroupData> _buildGroupedData(List<double> pre, List<double> post) {
-    return List.generate(3, (i) {
-      return BarChartGroupData(
-        x: i,
-        barRods: [
-          BarChartRodData(
-            toY: pre[i],
-            color: Colors.amber,
-            width: 10,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          BarChartRodData(
-            toY: post[i],
-            color: Colors.deepOrangeAccent,
-            width: 10,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ],
-        barsSpace: 6,
-      );
-    });
-  }
-
-  Widget _buildChart(String grade, List<int> pre, List<int> post, GlobalKey chartKey) {
-    final totalPre = pre.isEmpty ? 0 : pre.fold(0, (a, b) => a + b);
-    final totalPost = post.isEmpty ? 0 : post.fold(0, (a, b) => a + b);
-
-    final prePercent = pre.map((e) => _percentage(e, totalPre)).toList();
-    final postPercent = post.map((e) => _percentage(e, totalPost)).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        RepaintBoundary(
-          key: chartKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.white,
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  "Grade $grade Oral Reading Profiles",
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                height: 280,
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: BarChart(
-                  BarChartData(
-                    barGroups: _buildGroupedData(prePercent, postPercent),
-                    titlesData: FlTitlesData(
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, _) {
-                            switch (value.toInt()) {
-                              case 0:
-                                return const Text('Independent', style: TextStyle(color: Colors.white, fontSize: 10));
-                              case 1:
-                                return const Text('Instructional', style: TextStyle(color: Colors.white, fontSize: 10));
-                              case 2:
-                                return const Text('Frustration', style: TextStyle(color: Colors.white, fontSize: 10));
-                              default:
-                                return const Text('');
-                            }
-                          },
-                          reservedSize: 42,
-                        ),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 32,
-                          getTitlesWidget: (value, _) => Text('${value.toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 11)),
-                        ),
-                      ),
-                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    gridData: FlGridData(show: true),
-                    borderData: FlBorderData(show: false),
-                    barTouchData: BarTouchData(
-                      enabled: true,
-                      touchTooltipData: BarTouchTooltipData(
-                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                          return BarTooltipItem('${rod.toY.toStringAsFixed(1)}%', const TextStyle(color: Colors.white));
+    return glassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$title — Total: $total',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
+          const SizedBox(height: 16),
+          RepaintBoundary(
+            key: chartKey,
+            child: SizedBox(
+              height: 280,
+              child: BarChart(
+                BarChartData(
+                  maxY: [
+                    ...grade5Counts,
+                    ...grade6Counts,
+                    grade5Counts.fold(0, (a, b) => a + b),
+                    grade6Counts.fold(0, (a, b) => a + b),
+                  ].reduce((a, b) => a > b ? a : b).toDouble() + 2,
+                  barGroups: List.generate(2, (i) {
+                    final data = i == 0 ? grade5Counts : grade6Counts;
+                    final totalTested = data.fold(0, (a, b) => a + b);
+                    return BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(toY: totalTested.toDouble(), width: 14, color: colors[0], borderRadius: BorderRadius.circular(4)),
+                        BarChartRodData(toY: data[2].toDouble(), width: 14, color: colors[1], borderRadius: BorderRadius.circular(4)),
+                        BarChartRodData(toY: data[1].toDouble(), width: 14, color: colors[2], borderRadius: BorderRadius.circular(4)),
+                        BarChartRodData(toY: data[0].toDouble(), width: 14, color: colors[3], borderRadius: BorderRadius.circular(4)),
+                      ],
+                      barsSpace: 4,
+                    );
+                  }),
+                  titlesData: FlTitlesData(
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, _) {
+                          if (value == 0) return const Text('GRADE 5');
+                          if (value == 1) return const Text('GRADE 6');
+                          return const SizedBox.shrink();
                         },
+                        reservedSize: 40,
                       ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              // Legend inside RepaintBoundary
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                margin: const EdgeInsets.only(top: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.white,
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 32,
+                        getTitlesWidget: (value, _) => Text('${value.toInt()}', style: const TextStyle(fontSize: 10)),
+                      ),
                     ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _legendItem(Colors.amber, "Pretest"),
-                    const SizedBox(width: 24),
-                    _legendItem(Colors.deepOrangeAccent, "Posttest"),
-                  ],
+                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  gridData: FlGridData(show: true),
+                  barTouchData: BarTouchData(enabled: true),
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (widget.isTeacher)
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-              label: const Text("Save as PDF", style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              onPressed: () => _exportChartToPDF(chartKey, "Grade $grade Chart"),
             ),
           ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 20,
+            runSpacing: 8,
+            children: [
+              _legendDot(colors[0], 'Pupils Tested'),
+              _legendDot(colors[1], 'Frustration'),
+              _legendDot(colors[2], 'Instructional'),
+              _legendDot(colors[3], 'Independent'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (widget.isTeacher)
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text("Save as PDF"),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                onPressed: () => _exportChartToPDF(chartKey, title),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 14, height: 14, color: color),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontSize: 13)),
       ],
     );
   }
@@ -275,29 +260,18 @@ class _GradeBarChartState extends State<GradeBarChart> {
       await WidgetsBinding.instance.endOfFrame;
 
       final context = chartKey.currentContext;
-      if (context == null) {
-        print("Chart context is null.");
-        return;
-      }
-      final boundary = context.findRenderObject();
-      if (boundary == null || boundary is! RenderRepaintBoundary) {
-        print("RenderRepaintBoundary not found.");
-        return;
-      }
+      if (context == null) return;
 
-      if (boundary.debugNeedsPaint) {
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
+      final boundary = context.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
 
-      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        print("Failed to get byte data from image.");
-        return;
-      }
-      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
 
+      final pngBytes = byteData.buffer.asUint8List();
       final pdf = pw.Document();
+
       pdf.addPage(
         pw.Page(
           build: (pw.Context context) => pw.Column(
@@ -313,22 +287,8 @@ class _GradeBarChartState extends State<GradeBarChart> {
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
-      print("Error exporting chart to PDF: $e");
+      print("PDF Export Error: $e");
     }
-  }
-
-  Widget _legendItem(Color color, String label) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
-        ),
-        const SizedBox(width: 8),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
-      ],
-    );
   }
 
   @override
@@ -339,8 +299,19 @@ class _GradeBarChartState extends State<GradeBarChart> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                _buildChart("5", [g5PreInd, g5PreInst, g5PreFrus], [g5PostInd, g5PostInst, g5PostFrus], _chartKey5),
-                _buildChart("6", [g6PreInd, g6PreInst, g6PreFrus], [g6PostInd, g6PostInst, g6PostFrus], _chartKey6),
+                buildGroupedChart(
+                  title: "Pretest Results",
+                  chartKey: _pretestChartKey,
+                  grade5Counts: [g5PreInd, g5PreInst, g5PreFrus],
+                  grade6Counts: [g6PreInd, g6PreInst, g6PreFrus],
+                ),
+                const SizedBox(height: 10),
+                buildGroupedChart(
+                  title: "Posttest Results",
+                  chartKey: _posttestChartKey,
+                  grade5Counts: [g5PostInd, g5PostInst, g5PostFrus],
+                  grade6Counts: [g6PostInd, g6PostInst, g6PostFrus],
+                ),
               ],
             ),
           );

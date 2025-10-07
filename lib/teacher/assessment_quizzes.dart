@@ -1,8 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:reading_comprehension/teacher/assessment_page.dart';
 import '../Screens/edit_quiz_screen.dart';
 import '../widgets/background.dart';
+import 'dart:ui';
+
+Widget glassCard({required Widget child}) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(16),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color.fromRGBO(255, 255, 255, 0.2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: child,
+      ),
+    ),
+  );
+}
+
 
 class AssessmentQuizzesPage extends StatefulWidget {
   final String teacherId;
@@ -45,52 +71,12 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
             automaticallyImplyLeading: false,
             backgroundColor: const Color(0xFF15A323),
             elevation: 0,
-            title: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AssessmentPage(teacherId: widget.teacherId),
-                      ),
-                    );
-                  },
-                  child: Text(
-                    'Passages',
-                    style: TextStyle(
-                      fontSize: 25,
-                      fontWeight: FontWeight.bold,
-                      color: passagesColor,
-                    ),
-                  ),
-                ),
-                Container(
-                  width: 2,
-                  height: 20,
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  color: Colors.white,
-                ),
-                GestureDetector(
-                  onTap: () {},
-                  child: Text(
-                    'Quizzes',
-                    style: TextStyle(
-                      fontSize: 25,
-                      fontWeight: FontWeight.bold,
-                      color: quizzesColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            bottom: TabBar(
+            
+            title: TabBar(
               controller: _tabController,
               tabs: const [
-                Tab(text: 'Pre-test'),
-                Tab(text: 'Custom'),
-                Tab(text: 'Post test'),
+                Tab(text: 'Pretest'),
+                Tab(text: 'Posttest'),
               ],
               indicatorColor: Colors.yellow,
               labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -106,7 +92,6 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
                   controller: _tabController,
                   children: [
                     _buildQuizListView('pretest'),
-                    _buildQuizListView('custom'),
                     _buildQuizListView('post test'),
                   ],
                 ),
@@ -175,84 +160,93 @@ class _AssessmentQuizzesPageState extends State<AssessmentQuizzesPage> with Sing
   }
 
   Widget _buildQuizListView(String quizType) {
-    Query sharedQuery = FirebaseFirestore.instance
-        .collection('Quizzes')
-        .where('type', isEqualTo: quizType);
+  Query sharedQuery = FirebaseFirestore.instance
+      .collection('Quizzes')
+      .where('type', isEqualTo: quizType);
 
-    Query teacherQuery = FirebaseFirestore.instance
-        .collection('Teachers')
-        .doc(widget.teacherId)
-        .collection('TeacherQuizzes')
-        .where('type', isEqualTo: quizType);
+  Query teacherQuery = FirebaseFirestore.instance
+      .collection('Teachers')
+      .doc(widget.teacherId)
+      .collection('TeacherQuizzes')
+      .where('type', isEqualTo: quizType);
 
-    if (selectedSet != null && selectedSet!.isNotEmpty) {
-      sharedQuery = sharedQuery.where('set', isEqualTo: selectedSet);
-      teacherQuery = teacherQuery.where('set', isEqualTo: selectedSet);
-    }
-
-    if (selectedGradeLevel != null && selectedGradeLevel!.isNotEmpty) {
-      sharedQuery = sharedQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
-      teacherQuery = teacherQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
-    }
-
-    var order = sortOrder == 'Ascending' ? false : true;
-    sharedQuery = sharedQuery.orderBy('title', descending: order);
-    teacherQuery = teacherQuery.orderBy('title', descending: order);
-
-    return FutureBuilder(
-      future: Future.wait([sharedQuery.get(), teacherQuery.get()]),
-      builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        var sharedQuizzes = snapshot.data![0].docs;
-        var teacherQuizzes = snapshot.data![1].docs;
-
-        var allQuizzes = sharedQuizzes + teacherQuizzes;
-
-        if (allQuizzes.isEmpty) {
-          return const Center(child: Text('No quizzes available'));
-        }
-
-        var filteredQuizzes = allQuizzes.where((quiz) {
-          var data = quiz.data() as Map<String, dynamic>;
-          var title = data['title']?.toLowerCase() ?? '';
-          return title.contains(searchQuery);
-        }).toList();
-
-        return ListView.builder(
-          itemCount: filteredQuizzes.length,
-          itemBuilder: (context, index) {
-            var data = filteredQuizzes[index].data() as Map<String, dynamic>;
-            var title = data['title'] ?? 'No Title';
-            var gradeLevel = data['gradeLevel'] ?? 'N/A';
-            var set = data['set'] ?? 'N/A';
-
-            return ListTile(
-              title: Text(
-                title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text('Grade Level: $gradeLevel, Set: $set'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EditQuizScreen(quizId: filteredQuizzes[index].id, teacherId: widget.teacherId),
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
-    );
+  if (selectedSet != null && selectedSet!.isNotEmpty) {
+    sharedQuery = sharedQuery.where('set', isEqualTo: selectedSet);
+    teacherQuery = teacherQuery.where('set', isEqualTo: selectedSet);
   }
+
+  if (selectedGradeLevel != null && selectedGradeLevel!.isNotEmpty) {
+    sharedQuery = sharedQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
+    teacherQuery = teacherQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
+  }
+
+  var order = sortOrder == 'Ascending' ? false : true;
+  sharedQuery = sharedQuery.orderBy('title', descending: order);
+  teacherQuery = teacherQuery.orderBy('title', descending: order);
+
+  return FutureBuilder(
+    future: Future.wait([sharedQuery.get(), teacherQuery.get()]),
+    builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
+      if (snapshot.hasError) {
+        return Center(child: Text('Error: ${snapshot.error}'));
+      }
+
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      var sharedQuizzes = snapshot.data![0].docs;
+      var teacherQuizzes = snapshot.data![1].docs;
+
+      var allQuizzes = sharedQuizzes + teacherQuizzes;
+
+      if (allQuizzes.isEmpty) {
+        return const Center(child: Text('No quizzes available'));
+      }
+
+      var filteredQuizzes = allQuizzes.where((quiz) {
+        var data = quiz.data() as Map<String, dynamic>;
+        var title = data['title']?.toLowerCase() ?? '';
+        return title.contains(searchQuery);
+      }).toList();
+
+      return ListView.builder(
+        itemCount: filteredQuizzes.length,
+        itemBuilder: (context, index) {
+          var data = filteredQuizzes[index].data() as Map<String, dynamic>;
+          var title = data['title'] ?? 'No Title';
+          var gradeLevel = data['gradeLevel'] ?? 'N/A';
+          var set = data['set'] ?? 'N/A';
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: glassCard(
+              child: ListTile(
+                title: Text(
+                  title,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text('$gradeLevel, $set'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditQuizScreen(
+                        quizId: filteredQuizzes[index].id,
+                        teacherId: widget.teacherId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 
   void _showFilterOptions(BuildContext context) {
     showModalBottomSheet(

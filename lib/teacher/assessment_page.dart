@@ -5,8 +5,44 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:reading_comprehension/teacher/story_detail_page.dart';
 import 'package:reading_comprehension/widgets/background.dart';
 import 'package:reading_comprehension/screens/create_story_page.dart';
-import 'assessment_quizzes.dart';
 import 'package:reading_comprehension/widgets/assign_story_quiz_page.dart';
+import 'dart:ui';
+
+// Listen for real-time updates to assignments for a student
+Stream<bool> hasPosttestAssignedStream(String studentId, String schoolYear) {
+  return FirebaseFirestore.instance
+      .collection('AssignedAssessments')
+      .where('studentId', isEqualTo: studentId)
+      .where('type', isEqualTo: 'post test')
+      .where('schoolYear', isEqualTo: schoolYear)
+      .snapshots()
+      .map((snapshot) => snapshot.docs.isNotEmpty);
+}
+
+Widget glassCard({required Widget child}) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(16),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color.fromRGBO(255, 255, 255, 0.2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: child,
+      ),
+    ),
+  );
+}
 
 class AssessmentPage extends StatefulWidget {
   final String teacherId;
@@ -60,35 +96,13 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
             automaticallyImplyLeading: false,
             backgroundColor: const Color(0xFF15A323),
             elevation: 0,
-            title: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildNavigationTab(
-                  label: 'Passages',
-                  color: passagesColor,
-                  onTap: () {},
-                ),
-                _buildVerticalDivider(),
-                _buildNavigationTab(
-                  label: 'Quizzes',
-                  color: quizzesColor,
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AssessmentQuizzesPage(teacherId: widget.teacherId),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            bottom: TabBar(
+            
+            title: TabBar(
               controller: _tabController,
               tabs: const [
-                Tab(text: 'Pre-test'),
-                Tab(text: 'Custom'),
-                Tab(text: 'Post test'),
+                Tab(text: 'Pretest'),
+                //Tab(text: 'Custom'), // Uncomment if you have a custom tab
+                Tab(text: 'Posttest'),
               ],
               indicatorColor: Colors.yellow,
               labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -104,7 +118,7 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                   controller: _tabController,
                   children: [
                     _buildStoryListView('pretest'),
-                    _buildStoryListView('custom'),
+                    // _buildStoryListView('custom'),// add this line if you have a custom tab
                     _buildStoryListView('post test'),
                   ],
                 ),
@@ -116,32 +130,28 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
       ),
     );
   }
+Future<bool> checkIfAssessmentExists(String studentId, String type, String schoolYear) async {
+  final snapshot = await FirebaseFirestore.instance
+      .collection('AssignedAssessments')
+      .where('studentId', isEqualTo: studentId)
+      .where('type', isEqualTo: type)
+      .where('schoolYear', isEqualTo: schoolYear)
+      .get();
 
-  Widget _buildNavigationTab({required String label, required Color color, required VoidCallback onTap}) {
-    return Flexible(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 25,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
+  return snapshot.docs.isNotEmpty;
+}
 
-  Widget _buildVerticalDivider() {
-    return Container(
-      width: 2,
-      height: 20,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: Colors.white,
-    );
-  }
+Future<bool> canAssignAssessment(String studentId, String type, String schoolYear) async {
+  final snapshot = await FirebaseFirestore.instance
+      .collection('AssignedAssessments')
+      .where('studentId', isEqualTo: studentId)
+      .where('type', isEqualTo: type)
+      .where('schoolYear', isEqualTo: schoolYear)
+      .get();
+  return snapshot.docs.isEmpty;
+}
+
+  // ...existing code...
 
   Widget _buildFilterBar() {
     return Container(
@@ -199,91 +209,97 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
     });
   }
 
-  Widget _buildStoryListView(String testType) {
-    final currentUser = FirebaseAuth.instance.currentUser;
+Widget _buildStoryListView(String testType) {
+  final currentUser = FirebaseAuth.instance.currentUser;
 
-    if (currentUser == null) {
-      log('Error: No authenticated user');
-      return Center(child: Text("Permission Denied: Unauthorized User"));
-    } else if (currentUser.uid != widget.teacherId) {
-      log('Error: Authenticated user UID (${currentUser.uid}) does not match teacherId (${widget.teacherId})');
-      return Center(child: Text("Permission Denied: Unauthorized User"));
-    }
-
-    Query sharedQuery = FirebaseFirestore.instance
-        .collection('Stories')
-        .where('type', isEqualTo: testType);
-
-    Query teacherQuery = FirebaseFirestore.instance
-        .collection('Teachers')
-        .doc(widget.teacherId)
-        .collection('TeacherStories')
-        .where('type', isEqualTo: testType);
-
-    if (selectedSet != null && selectedSet!.isNotEmpty) {
-      sharedQuery = sharedQuery.where('set', isEqualTo: selectedSet);
-      teacherQuery = teacherQuery.where('set', isEqualTo: selectedSet);
-    }
-
-    if (selectedGradeLevel != null && selectedGradeLevel!.isNotEmpty) {
-      sharedQuery = sharedQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
-      teacherQuery = teacherQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
-    }
-
-    var order = sortOrder == 'Ascending' ? false : true;
-    sharedQuery = sharedQuery.orderBy('title', descending: order);
-    teacherQuery = teacherQuery.orderBy('title', descending: order);
-
-    return FutureBuilder(
-      future: Future.wait([sharedQuery.get(), teacherQuery.get()]),
-      builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
-        if (snapshot.hasError) {
-          log('Error retrieving stories: ${snapshot.error}');
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        var sharedStories = snapshot.data![0].docs;
-        var teacherStories = snapshot.data![1].docs;
-
-        var allStories = sharedStories + teacherStories;
-
-        if (allStories.isEmpty) {
-          return const Center(child: Text('No data found'));
-        }
-
-        var filteredStories = allStories.where((story) {
-          var data = story.data() as Map<String, dynamic>;
-          var title = data['title']?.toLowerCase() ?? '';
-          return title.contains(searchQuery);
-        }).toList();
-
-        return ListView.builder(
-          itemCount: filteredStories.length,
-          itemBuilder: (context, index) {
-            var data = filteredStories[index].data() as Map<String, dynamic>;
-            var title = data['title'] ?? 'Untitled';
-            var gradeLevel = data['gradeLevel'] ?? 'N/A';
-            var set = data['set'] ?? 'N/A';
-
-            return ListTile(
-              title: Text(
-                title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text('Grade Level: $gradeLevel, Set: $set'),
-              onTap: () {
-                _navigateToStoryDetail(filteredStories[index].id, data['title'], data['content'], teacherStories.contains(filteredStories[index]));
-              },
-            );
-          },
-        );
-      },
-    );
+  if (currentUser == null || currentUser.uid != widget.teacherId) {
+    log('Unauthorized: currentUser=${currentUser?.uid}, teacherId=${widget.teacherId}');
+    return const Center(child: Text("Permission Denied: Unauthorized User"));
   }
+
+  Query sharedQuery = FirebaseFirestore.instance
+      .collection('Stories')
+      .where('type', isEqualTo: testType);
+
+  Query teacherQuery = FirebaseFirestore.instance
+      .collection('Teachers')
+      .doc(widget.teacherId)
+      .collection('TeacherStories')
+      .where('type', isEqualTo: testType);
+
+  if (selectedSet != null && selectedSet!.isNotEmpty) {
+    sharedQuery = sharedQuery.where('set', isEqualTo: selectedSet);
+    teacherQuery = teacherQuery.where('set', isEqualTo: selectedSet);
+  }
+
+  if (selectedGradeLevel != null && selectedGradeLevel!.isNotEmpty) {
+    sharedQuery = sharedQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
+    teacherQuery = teacherQuery.where('gradeLevel', isEqualTo: selectedGradeLevel);
+  }
+
+  final bool descending = sortOrder == 'Descending';
+  sharedQuery = sharedQuery.orderBy('title', descending: descending);
+  teacherQuery = teacherQuery.orderBy('title', descending: descending);
+
+  return FutureBuilder(
+    future: Future.wait([sharedQuery.get(), teacherQuery.get()]),
+    builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
+      if (snapshot.hasError) {
+        log('Error retrieving stories: ${snapshot.error}');
+        return Center(child: Text('Error: ${snapshot.error}'));
+      }
+
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final sharedStories = snapshot.data![0].docs;
+      final teacherStories = snapshot.data![1].docs;
+      final allStories = sharedStories + teacherStories;
+
+      if (allStories.isEmpty) {
+        return const Center(child: Text('No data found'));
+      }
+
+      final filteredStories = allStories.where((story) {
+        final data = story.data() as Map<String, dynamic>;
+        final title = data['title']?.toLowerCase() ?? '';
+        return title.contains(searchQuery);
+      }).toList();
+
+      return ListView.builder(
+        itemCount: filteredStories.length,
+        itemBuilder: (context, index) {
+          final data = filteredStories[index].data() as Map<String, dynamic>;
+          final title = data['title'] ?? 'Untitled';
+          final gradeLevel = data['gradeLevel'] ?? 'N/A';
+          final set = data['set'] ?? 'N/A';
+          final isTeacher = teacherStories.contains(filteredStories[index]);
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: glassCard(
+              child: ListTile(
+                title: Text(
+                  title,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text('$gradeLevel, $set'),
+                onTap: () => _navigateToStoryDetail(
+                  filteredStories[index].id,
+                  title,
+                  data['content'] ?? '',
+                  isTeacher,
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 
   void _showFilterOptions(BuildContext context) {
     showModalBottomSheet(
@@ -305,7 +321,7 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 ),
-                items: ['A', 'B', 'C', 'D'].map((set) {
+                items: ['Set A', 'Set B', 'Set C', 'Set D'].map((set) {
                   return DropdownMenuItem(
                     value: set,
                     child: Text(set, style: TextStyle(fontSize: 14)),
@@ -327,7 +343,7 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 ),
-                items: ['2', '3', '4', '5', '6'].map((grade) {
+                items: ['Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].map((grade) {
                   return DropdownMenuItem(
                     value: grade,
                     child: Text(grade, style: TextStyle(fontSize: 14)),
@@ -391,30 +407,30 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CreateStoryPage(teacherId: widget.teacherId),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add, color: Colors.black),
-              label: const Text(
-                'Add Passage',
-                style: TextStyle(color: Colors.black),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-              ),
-            ),
-          ),
+          // Expanded(
+          //   child: ElevatedButton.icon(
+          //     onPressed: () {
+          //       Navigator.push(
+          //         context,
+          //         MaterialPageRoute(
+          //           builder: (context) => CreateStoryPage(teacherId: widget.teacherId),
+          //         ),
+          //       );
+          //     },
+          //     icon: const Icon(Icons.add, color: Colors.black),
+          //     label: const Text(
+          //       'Add Passage',
+          //       style: TextStyle(color: Colors.black),
+          //     ),
+          //     style: ElevatedButton.styleFrom(
+          //       backgroundColor: Colors.green,
+          //       padding: const EdgeInsets.symmetric(vertical: 12),
+          //       shape: RoundedRectangleBorder(
+          //         borderRadius: BorderRadius.circular(8.0),
+          //       ),
+          //     ),
+          //   ),
+          // ),
           const SizedBox(width: 16),
           Expanded(
             child: ElevatedButton.icon(
@@ -459,4 +475,64 @@ class _AssessmentPageState extends State<AssessmentPage> with SingleTickerProvid
       ),
     );
   }
+
+Future<void> assignToSelectedStudents(
+  List<String> studentIds,
+  String type,
+  String schoolYear,
+  Map<String, dynamic> assessmentData,
+) async {
+  List<String> skipped = [];
+  WriteBatch batch = FirebaseFirestore.instance.batch();
+
+  for (final studentId in studentIds) {
+    // Check if the student already has a record of the same type (pretest/post test) in the current school year
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('AssignedAssessments')
+        .where('studentId', isEqualTo: studentId)
+        .where('type', isEqualTo: type)
+        .where('schoolYear', isEqualTo: schoolYear)
+        .limit(1)
+        .get();
+
+    // If none exists, proceed with assigning
+    if (querySnapshot.docs.isEmpty) {
+      final newDoc = FirebaseFirestore.instance.collection('AssignedAssessments').doc();
+      batch.set(newDoc, {
+        ...assessmentData,
+        'studentId': studentId,
+        'type': type,
+        'schoolYear': schoolYear,
+        'assignedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      // Already assigned, skip and log
+      skipped.add(studentId);
+    }
+  }
+
+  try {
+    await batch.commit();
+
+    if (skipped.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Skipped ${skipped.length} student(s): already assigned a $type.',
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Assessment assigned successfully to all students.')),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error assigning assessment: $e')),
+    );
+  }
+}
+
+
 }

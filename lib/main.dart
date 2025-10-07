@@ -1,16 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:reading_comprehension/Screens/splash_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
+import 'Screens/splash_screen.dart';
 import 'Screens/login_page.dart';
+import 'package:reading_comprehension/about_page.dart';
+
+// Global notifier for theme mode
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MyApp());
+
+  // Load theme preference
+  final prefs = await SharedPreferences.getInstance();
+  final isDark = prefs.getBool('isDarkMode') ?? false;
+  themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
+
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -18,18 +29,27 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: Colors.transparent,
-        textTheme: GoogleFonts.lexendDecaTextTheme(
-          Theme.of(context).textTheme,
-        ),
-      ),
-      home: const SplashScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (_, mode, __) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            brightness: Brightness.light,
+            scaffoldBackgroundColor: Colors.transparent,
+            textTheme: GoogleFonts.lexendDecaTextTheme(),
+          ),
+          darkTheme: ThemeData.dark().copyWith(
+            textTheme: GoogleFonts.lexendDecaTextTheme(),
+          ),
+          themeMode: mode,
+          home: const SplashScreen(),
+        );
+      },
     );
   }
 }
+
 
 class MyHomePage extends StatelessWidget {
   const MyHomePage({super.key});
@@ -49,75 +69,115 @@ class MyHomePage extends StatelessWidget {
               ),
             ),
           ),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Image.asset(
-                  "assets/images/logo.png",
-                  height: 300, // Adjusted height
-                  width: 400,  // Adjusted width
-                  fit: BoxFit.fill,
-                ),
-                const SizedBox(height: 20), // Adjusted spacing
-                Text(
-                  "Welcome to CISC KIDS APP!",
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.lexendDeca(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 23,
+        
+          SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    "assets/images/logo.png",
+                    height: 300,
+                    width: 400,
+                    fit: BoxFit.fill,
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  "Mobile Reading Comprehension",
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.lexendDeca(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 18,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 30),
-                  child: Text(
-                    "We believe in the power of education to transform lives. Our mission is to empower learners and educators through innovative assessments that foster meaningful learning. Assessment is not just about testing it's about understanding, growth, and continuous improvement.",
+                  const SizedBox(height: 20),
+                  Text(
+                    "Welcome to CISC KIDS APP!",
                     textAlign: TextAlign.center,
                     style: GoogleFonts.lexendDeca(
-                      fontWeight: FontWeight.w300,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Mobile Reading Comprehension",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.lexendDeca(
+                      fontWeight: FontWeight.w500,
                       fontSize: 18,
                     ),
                   ),
-                ),
-                const SizedBox(height: 30), // Adjusted spacing
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 30),
+                    child: Text(
+                      "We believe in the power of education to transform lives. Our mission is to empower learners and educators through innovative assessments that foster meaningful learning. Assessment is not just about testing it's about understanding, growth, and continuous improvement.",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.lexendDeca(
+                        fontWeight: FontWeight.w300,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  // GET STARTED Button
+                  Container(
+                    height: 50,
+                    width: 300,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(50),
+                      color: const Color(0xFF15A323),
+                    ),
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const SignIn()),
+                        );
+                      },
+                      child: const Text(
+                        "GET STARTED",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  // ABOUT US Button
                 Container(
                   height: 50,
-                  width: 300,
+                  width: 180,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(50),
-                    color: const Color(0xFF15A323),
+                    color: Colors.transparent,
                   ),
                   child: TextButton(
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const SignIn(),
-                        ),
+                        MaterialPageRoute(builder: (context) => const AboutPage()),
                       );
                     },
                     child: const Text(
-                      "GET STARTED",
+                      "ABOUT US",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 20, // Adjusted font size
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
-              ],
+                const SizedBox(height: 5),
+                Container(
+                  height: 50,
+                  width: 180,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(50),
+                    color: Colors.transparent,
+                  ),
+                 
+                    
+                ),
+
+                ],
+              ),
             ),
           ),
         ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:reading_comprehension/school_year_service.dart';
 import 'student_sign_up.dart';
 import 'student_home_page.dart';
 import 'package:reading_comprehension/widgets/background.dart';
@@ -16,43 +17,66 @@ class LogInStudent extends StatefulWidget {
 
 class _LogInStudentState extends State<LogInStudent> {
   final TextEditingController _email = TextEditingController();
-  final TextEditingController _pwd = TextEditingController();
+  final TextEditingController _password = TextEditingController();
   bool _obscureText = true;
   String? _emailErrorMessage;
   String? _passwordErrorMessage;
   String? _generalErrorMessage;
   bool _loading = false;
+  final SchoolYearService _schoolYearService = SchoolYearService(FirebaseFirestore.instance);
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
+        _loading = true;
         _emailErrorMessage = null;
         _passwordErrorMessage = null;
         _generalErrorMessage = null;
-        _loading = true;
       });
 
       try {
         UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _email.text,
-          password: _pwd.text,
+          password: _password.text,
         );
 
-        // Check the Students collection instead of Users collection
-        var studentDoc = await FirebaseFirestore.instance.collection('Students').doc(userCredential.user!.uid).get();
+        final studentDoc = await FirebaseFirestore.instance
+            .collection('Students')
+            .doc(userCredential.user!.uid)
+            .get();
 
         if (studentDoc.exists) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const StudentHomePage(studentId: '',),
-            ),
-          );
-        } else {
-          setState(() {
-            _generalErrorMessage = 'Not authorized as a student or account not found.';
-          });
-          await FirebaseAuth.instance.signOut();
+          final user = FirebaseAuth.instance.currentUser;
+          final isEmailVerified = user?.emailVerified ?? false;
+          final createdAt = studentDoc['createdAt'];
+          final createdDate = (createdAt is Timestamp) ? createdAt.toDate() : null;
+
+          if (isEmailVerified || (createdDate != null && createdDate.isBefore(DateTime(2025, 5, 11)))) {
+            // Get current school year
+            final currentSchoolYear = await _schoolYearService.getCurrentSchoolYear();
+
+            await FirebaseFirestore.instance.collection('Logs').add({
+              'message': 'Student "${studentDoc['firstName']} ${studentDoc['lastName']}" signed in',
+              'timestamp': Timestamp.now(),
+              'schoolYear': currentSchoolYear,
+            });
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentHomePage(
+                  studentId: user!.uid,
+                  currentSchoolYear: currentSchoolYear,
+                ),
+              ),
+            );
+          } else {
+            setState(() {
+              _generalErrorMessage = "Please verify your email before logging in.";
+              _loading = false;
+            });
+            await FirebaseAuth.instance.signOut();
+          }
         }
       } on FirebaseAuthException catch (e) {
         setState(() {
@@ -79,191 +103,220 @@ class _LogInStudentState extends State<LogInStudent> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: Background(
-        child: Padding(
-          padding: const EdgeInsets.all(15.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 50, bottom: 50),
-                  height: 50,
-                  child: const Text(
-                    "Welcome Back, Student!",
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+    return Background(
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        backgroundColor: Colors.transparent,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
                 ),
-                TextFormField(
-                  keyboardType: TextInputType.emailAddress,
-                  controller: _email,
-                  validator: (email) => email!.isNotEmpty ? null : 'Please enter your email',
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.email),
-                    labelText: "Email Address",
-                    hintText: "Please Enter Your Email",
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (_emailErrorMessage != null) ...[
-                  Text(
-                    _emailErrorMessage!,
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _pwd,
-                  obscureText: _obscureText,
-                  validator: (pwd) => pwd!.length >= 6 ? null : 'Password must be at least 6 characters',
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureText ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () {
-                        setState(() {
-                          _obscureText = !_obscureText;
-                        });
-                      },
-                    ),
-                    labelText: "Password",
-                    hintText: "Please Enter Your Password",
-                    border: const OutlineInputBorder(
-                      borderSide: BorderSide(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (_passwordErrorMessage != null) ...[
-                  Text(
-                    _passwordErrorMessage!,
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                if (_generalErrorMessage != null) ...[
-                  Text(
-                    _generalErrorMessage!,
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () {
-                    // Handle forgot password
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          content: Form(
-                            child: Container(
-                              height: 100,
-                              alignment: Alignment.center,
-                              child: TextFormField(
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(
-                                    borderSide: BorderSide(),
+                child: Padding(
+                  padding: const EdgeInsets.all(15.0),
+                  child: Form(
+                    key: _formKey,
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Logo Section
+                          SizedBox(
+                            height: 300,
+                            width: 400,
+                            child: Image.asset(
+                              "assets/images/logo.png",
+                              fit: BoxFit.fill,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          // Welcome Text
+                          const Text(
+                            "Welcome Back, Student!",
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 30),
+                          // Email Input
+                          TextFormField(
+                            keyboardType: TextInputType.emailAddress,
+                            controller: _email,
+                            validator: (email) =>
+                                email!.isNotEmpty ? null : 'Please enter your email',
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.email),
+                              labelText: "Parent's Email Address",
+                              hintText: "Please Enter Your Email",
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          if (_emailErrorMessage != null) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              _emailErrorMessage!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 20),
+                          // Password Input
+                          TextFormField(
+                            controller: _password,
+                            obscureText: _obscureText,
+                            validator: (pwd) =>
+                                pwd!.length >= 6 ? null : 'Password must be at least 6 characters',
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.lock),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                    _obscureText ? Icons.visibility_off : Icons.visibility),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscureText = !_obscureText;
+                                  });
+                                },
+                              ),
+                              labelText: "Password",
+                              hintText: "Please Enter Your Password",
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
+                          if (_passwordErrorMessage != null) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              _passwordErrorMessage!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 20),
+                          // General Error Message
+                          if (_generalErrorMessage != null) ...[
+                            Text(
+                              _generalErrorMessage!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 20),
+                          // Forgot Password Section
+                          TextButton(
+                            onPressed: () async {
+                              if (_email.text.isEmpty) {
+                                setState(() {
+                                  _emailErrorMessage = 'Please enter your email first.';
+                                });
+                                return;
+                              }
+
+                              try {
+                                await FirebaseAuth.instance.sendPasswordResetEmail(email: _email.text.trim());
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Password reset email sent. Check your inbox.')),
+                                );
+                              } on FirebaseAuthException catch (e) {
+                                setState(() {
+                                  _generalErrorMessage = 'Error: ${e.message}';
+                                });
+                              }
+                            },
+                            child: const Text(
+                              "Forgot Password?",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                          const SizedBox(height: 25),
+                          // Login Button
+                          if (_loading)
+                            const CircularProgressIndicator(color: Colors.green)
+                          else
+                            SizedBox(
+                              height: 50,
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF15A323),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
                                   ),
-                                  prefixIcon: Icon(Icons.email),
-                                  hintText: "Enter Your Email",
-                                  label: Text("Email"),
+                                ),
+                                onPressed: _login,
+                                child: const Text(
+                                  "Sign In as Student",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          actions: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          const SizedBox(height: 20),
+                          // Sign Up Section
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text("Cancel"),
+                                const Text(
+                                  "Don't have an account? ",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                  ),
                                 ),
-                                ElevatedButton(
-                                  onPressed: () {},
-                                  child: const Text("Send!"),
+                                TextButton(
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size(0, 0),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const SignUpStudent(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text(
+                                    "Sign Up Now!",
+                                    style: TextStyle(
+                                      color: Colors.amberAccent,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  child: const Text(
-                    "Forgot Password?",
-                    style: TextStyle(
-                      color: Color.fromARGB(255, 61, 58, 58),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 25),
-                if (_loading) ...[
-                  const CircularProgressIndicator(color: Colors.green),
-                  const SizedBox(height: 20),
-                ],
-                if (!_loading)
-                  SizedBox(
-                    height: 55,
-                    width: 500,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF15A323),
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(50)),
-                        ),
-                      ),
-                      onPressed: _login,
-                      child: const Text(
-                        "Log In as Student",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("Don't have an account?"),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) {
-                              return const SignUpStudent();
-                            },
                           ),
-                        );
-                      },
-                      child: const Text(
-                        "Sign Up Now!",
-                        style: TextStyle(
-                          color: Color.fromARGB(255, 0, 0, 0),
-                        ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

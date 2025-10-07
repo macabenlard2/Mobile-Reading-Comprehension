@@ -52,34 +52,41 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Story Details',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF15A323),
-        automaticallyImplyLeading: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.white),
-            onPressed: deleteStory,
-          ),
-        ],
+  backgroundColor: Colors.grey[100], // ✅ Match your Background color
+  appBar: AppBar(
+    title: const Text(
+      'Story Details',
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
       ),
-      body: Background(
-        child: Stack(
+    ),
+    centerTitle: true,
+    backgroundColor: const Color(0xFF15A323),
+    automaticallyImplyLeading: true,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back, color: Colors.white),
+      onPressed: () => Navigator.of(context).pop(),
+    ),
+    actions: [
+  if (widget.isTeacherStory)
+    IconButton(
+      icon: const Icon(Icons.delete, color: Colors.white),
+      onPressed: deleteStory,
+    ),
+],
+
+  ),
+      body: SizedBox.expand(
+          child: Background(
+          child: Stack(
           children: [
-            StreamBuilder<DocumentSnapshot>(
+
+            SizedBox.expand(
+              child: StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance
+
                   .collection(widget.isTeacherStory && widget.teacherId != null && widget.teacherId!.isNotEmpty
                       ? 'Teachers/${widget.teacherId}/TeacherStories'
                       : 'Stories')
@@ -104,68 +111,67 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 titleController.text = storyData['title'] ?? 'No Title';
                 contentController.text = storyData['content'] ?? 'No Content';
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 20),
-                    isEditing
-                        ? TextFormField(
-                            controller: titleController,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 30),
-                            textAlign: TextAlign.center,
-                          )
-                        : Text(
-                            storyData['title'] ?? 'No Title',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 30),
-                            textAlign: TextAlign.center,
-                          ),
-                    const SizedBox(height: 20),
-                    isEditing
-                        ? TextFormField(
-                            controller: contentController,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                            textAlign: TextAlign.center,
-                            maxLines: null,
-                          )
-                        : Text(
-                            storyData['content'] ?? 'No Content',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w100),
-                            textAlign: TextAlign.center,
-                          ),
-                    const SizedBox(height: 32),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              if (isEditing) {
-                                updateStoryAndQuizTitle();
-                              } else {
-                                setState(() {
-                                  isEditing = true;
-                                });
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF15A323),
-                              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 40),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            child: Text(
-                              isEditing ? 'Update' : 'Edit',
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                      ),
+                
+
+                     return LayoutBuilder(
+                     builder: (context, constraints) {
+                            return SingleChildScrollView(
+                               padding: const EdgeInsets.all(16),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 20),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: isEditing
+                                ? TextFormField(
+                                    controller: titleController,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 30),
+                                    textAlign: TextAlign.center,
+                                    decoration: const InputDecoration(border: InputBorder.none),
+                                  )
+                                : Text(
+                                    storyData['title'] ?? 'No Title',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 30),
+                                    textAlign: TextAlign.center,
                     ),
-                  ],
-                );
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: isEditing
+                  ? TextFormField(
+                      controller: contentController,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      decoration: const InputDecoration(border: InputBorder.none),
+                    )
+                  : Text(
+                      storyData['content'] ?? 'No Content',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w100),
+                      textAlign: TextAlign.center,
+                    ),
+            ),
+            const SizedBox(height: 100), // Leaves space above the fixed bottom button
+          ],
+        ),
+      ),
+    );
+  },
+);
+
+
+
+
+
               },
+            ),
             ),
             if (isLoading)
               Container(
@@ -179,11 +185,60 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
           ],
         ),
       ),
-    );
-  }
+      ),
+     bottomNavigationBar: widget.isTeacherStory
+    ? Padding(
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton(
+          onPressed: () {
+            if (isEditing) {
+              updateStoryAndQuizTitle();
+              if (!widget.isTeacherStory) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Editing default stories is not allowed.")),
+            );
+            
+              }
+
+              
+            } else {
+              setState(() {
+                isEditing = true;
+              });
+            }
+          
+
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF15A323),
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: Text(
+            isEditing ? 'Update' : 'Edit',
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      )
+    : const SizedBox.shrink(),
+
+
+ 
+ );
+}
 
  Future<void> deleteStory() async {
   bool confirmed = await _showDeleteConfirmationDialog();
+
+  if (!widget.isTeacherStory) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("Deleting default stories is not allowed.")),
+  );
+  return;
+}
+
 
   if (confirmed) {
     setState(() {
@@ -260,8 +315,38 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
     ) ?? false;
   }
 
-  void updateStoryAndQuizTitle() {
-    // Logic to update the story and associated quiz title in Firestore
+ void updateStoryAndQuizTitle() async {
+  setState(() {
+    isLoading = true;
+  });
+
+  try {
+    final String path = widget.isTeacherStory && widget.teacherId != null && widget.teacherId!.isNotEmpty
+        ? 'Teachers/${widget.teacherId}/TeacherStories'
+        : 'Stories';
+
+    await FirebaseFirestore.instance.collection(path).doc(widget.docId).update({
+      'title': titleController.text.trim(),
+      'content': contentController.text.trim(),
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Story updated successfully')),
+    );
+
+    setState(() {
+      isEditing = false;
+    });
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to update story: $e')),
+    );
+  } finally {
+    setState(() {
+      isLoading = false;
+    });
   }
+}
+
 
 }

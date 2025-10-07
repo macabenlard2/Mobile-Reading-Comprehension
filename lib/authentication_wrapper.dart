@@ -22,13 +22,11 @@ class _AuthenticationWrapperState extends State<AuthenticationWrapper>
   void initState() {
     super.initState();
 
-    // Initialize AnimationController
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     );
 
-    // Define fade animation for the gradient
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
@@ -36,7 +34,6 @@ class _AuthenticationWrapperState extends State<AuthenticationWrapper>
       ),
     );
 
-    // Start animation
     _controller.forward();
   }
 
@@ -48,51 +45,71 @@ class _AuthenticationWrapperState extends State<AuthenticationWrapper>
 
   @override
   Widget build(BuildContext context) {
-    final User? user = FirebaseAuth.instance.currentUser;
-
-    return AnimatedBuilder(
-      animation: _fadeAnimation,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFF4CAF50).withOpacity(_fadeAnimation.value),
-                const Color(0xFFFFEB3B).withOpacity(_fadeAnimation.value),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: child,
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnapshot) {
+        return AnimatedBuilder(
+          animation: _fadeAnimation,
+          builder: (context, child) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF4CAF50).withOpacity(_fadeAnimation.value),
+                    const Color(0xFFFFEB3B).withOpacity(_fadeAnimation.value),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: child,
+            );
+          },
+          child: _buildContent(authSnapshot),
         );
       },
-      child: user == null
-          ? const MyHomePage()
-          : FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('Users')
-                  .doc(user.uid)
-                  .get(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox.expand(); // No extra loading indicator
-                }
-
-                if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
-                  return const SignIn();
-                }
-
-                final role = snapshot.data!['role'];
-                if (role == 'teacher') {
-                  return TeacherHomePage(teacherId: user.uid);
-                } else if (role == 'student') {
-                  return StudentHomePage(studentId: user.uid);
-                }
-
-                return const SignIn();
-              },
-            ),
     );
   }
+
+Widget _buildContent(AsyncSnapshot<User?> authSnapshot) {
+  if (authSnapshot.connectionState == ConnectionState.waiting) {
+    return const SizedBox.expand(); // Splash handles loading
+  }
+
+  if (!authSnapshot.hasData || authSnapshot.data == null) {
+    return const MyHomePage(); // Not logged in
+  }
+
+  final User user = authSnapshot.data!;
+
+  return FutureBuilder<DocumentSnapshot>(
+    future: FirebaseFirestore.instance.collection('Teachers').doc(user.uid).get(),
+    builder: (context, teacherSnapshot) {
+      if (teacherSnapshot.connectionState == ConnectionState.waiting) {
+        return const SizedBox.expand();
+      }
+
+      if (teacherSnapshot.hasData && teacherSnapshot.data!.exists) {
+        return TeacherHomePage(teacherId: user.uid); // ✅ Found in Teachers
+      }
+
+      // ➕ Now check Students if not found in Teachers
+      return FutureBuilder<DocumentSnapshot>(
+        future: FirebaseFirestore.instance.collection('Students').doc(user.uid).get(),
+        builder: (context, studentSnapshot) {
+          if (studentSnapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox.expand();
+          }
+
+          if (studentSnapshot.hasData && studentSnapshot.data!.exists) {
+            return StudentHomePage(studentId: user.uid, currentSchoolYear: '',); // ✅ Found in Students
+          }
+
+          return const MyHomePage(); // ❌ Not found in either
+        },
+      );
+    },
+  );
+}
+
 }

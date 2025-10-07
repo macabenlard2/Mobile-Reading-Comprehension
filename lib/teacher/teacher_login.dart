@@ -3,7 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'teacher_sign_up.dart';
 import 'teacher_homepage.dart';
-import 'package:reading_comprehension/widgets/background.dart';  // Import your Background widget
+import 'package:reading_comprehension/widgets/background.dart'; // Import your Background widget
+import 'package:reading_comprehension/utils/logger.dart';
 
 final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
@@ -34,22 +35,63 @@ class _LogInTeacherState extends State<LogInTeacher> {
 
       try {
         UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _email.text,
-          password: _password.text,
-        );
+  email: _email.text,
+  password: _password.text,
+);
 
-        var userDoc = await FirebaseFirestore.instance.collection('Users').doc(userCredential.user!.uid).get();
-        if (userDoc.exists && userDoc.data()!['role'] == 'teacher') {
-          Navigator.pushReplacement(
-            // ignore: use_build_context_synchronously
-            context,
-            MaterialPageRoute(
-              builder: (context) => TeacherHomePage(teacherId: userCredential.user!.uid), // Pass teacherId
-            ),
-          );
-        } else {
-          throw Exception('Not authorized as teacher');
-        }
+var user = userCredential.user;
+var userDoc = await FirebaseFirestore.instance.collection('Users').doc(user!.uid).get();
+
+if (!user.emailVerified) {
+  DateTime cutoff = DateTime(2025, 5, 11);
+  bool isNewAccount = false;
+
+  if (userDoc.exists && userDoc.data()!.containsKey('createdAt')) {
+    Timestamp createdAt = userDoc['createdAt'];
+    isNewAccount = createdAt.toDate().isAfter(cutoff);
+  } else {
+    // Treat accounts without createdAt as old
+    isNewAccount = false;
+  }
+
+  if (isNewAccount) {
+    await user.sendEmailVerification();
+    await FirebaseAuth.instance.signOut();
+    setState(() {
+      _generalErrorMessage = 'Please verify your email. A verification link has been sent.';
+      _loading = false;
+    });
+    return;
+  } else {
+    debugPrint('Skipping verification for old account.');
+  }
+}
+
+
+
+
+
+
+
+if (userDoc.exists && userDoc.data()!['role'] == 'teacher') {
+  final teacherDoc = await FirebaseFirestore.instance.collection('Teachers').doc(userCredential.user!.uid).get();
+final firstName = teacherDoc['firstname'] ?? '';
+final lastName = teacherDoc['lastname'] ?? '';
+
+await FirebaseFirestore.instance.collection('Logs').add({
+  'message': 'Teacher "$firstName $lastName" signed in',
+  'timestamp': Timestamp.now(),
+});
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (context) => TeacherHomePage(teacherId: userCredential.user!.uid),
+    ),
+  );
+} else {
+  throw Exception('Not authorized as teacher');
+}
+
       } on FirebaseAuthException catch (e) {
         setState(() {
           _loading = false;
@@ -73,197 +115,217 @@ class _LogInTeacherState extends State<LogInTeacher> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Background(
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        backgroundColor: Colors.transparent,
-        body: Padding(
-          padding: const EdgeInsets.all(15.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 50, bottom: 50),
-                  height: 50,
-                  child: const Text(
-                    "Welcome Back, Teacher!",
-                    style: TextStyle(
-                      fontSize: 29,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                TextFormField(
-                  keyboardType: TextInputType.emailAddress,
-                  controller: _email,
-                  validator: (email) => email!.isNotEmpty ? null : 'Please enter your email',
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.email),
-                    labelText: "Email Address",
-                    hintText: "Please Enter Your Email",
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (_emailErrorMessage != null) ...[
-                  Text(
-                    _emailErrorMessage!,
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _password,
-                  obscureText: _obscureText,
-                  validator: (pwd) => pwd!.length >= 6 ? null : 'Password must be at least 6 characters',
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureText ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () {
-                        setState(() {
-                          _obscureText = !_obscureText;
-                        });
-                      },
-                    ),
-                    labelText: "Password",
-                    hintText: "Please Enter Your Password",
-                    border: const OutlineInputBorder(
-                      borderSide: BorderSide(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (_passwordErrorMessage != null) ...[
-                  Text(
-                    _passwordErrorMessage!,
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                if (_generalErrorMessage != null) ...[
-                  Text(
-                    _generalErrorMessage!,
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          content: Form(
-                            child: Container(
-                              height: 100,
-                              alignment: Alignment.center,
-                              child: TextFormField(
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(
-                                    borderSide: BorderSide(),
-                                  ),
-                                  prefixIcon: Icon(Icons.email),
-                                  hintText: "Enter Your Email",
-                                  label: Text("Email"),
+@override
+Widget build(BuildContext context) {
+  return Background(
+    child: Scaffold(
+      resizeToAvoidBottomInset: true, // Allow the layout to adjust when the keyboard appears
+      backgroundColor: Colors.transparent,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 15.0),
+                child: Form(
+                  key: _formKey,
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Logo Section
+                        SizedBox(
+                          height: 300,
+                          width: 400,
+                          child: Image.asset(
+                            "assets/images/logo.png",
+                            fit: BoxFit.fill,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Welcome Text
+                        const Text(
+                          "Welcome Back, Teacher!",
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 30),
+                        // Email Input
+                        TextFormField(
+                          keyboardType: TextInputType.emailAddress,
+                          controller: _email,
+                          validator: (email) => email!.isNotEmpty ? null : 'Please enter your email',
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.email),
+                            labelText: "Email Address",
+                            hintText: "Please Enter Your Email",
+                           
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        if (_emailErrorMessage != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            _emailErrorMessage!,
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        // Password Input
+                        TextFormField(
+                          controller: _password,
+                          obscureText: _obscureText,
+                          validator: (pwd) => pwd!.length >= 6 ? null : 'Password must be at least 6 characters',
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.lock),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscureText ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () {
+                                setState(() {
+                                  _obscureText = !_obscureText;
+                                });
+                              },
+                            ),
+                            labelText: "Password",
+                            hintText: "Please Enter Your Password",
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        if (_passwordErrorMessage != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            _passwordErrorMessage!,
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        // General Error Message
+                        if (_generalErrorMessage != null) ...[
+                          Text(
+                            _generalErrorMessage!,
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        // Forgot Password Section
+                        TextButton(
+                          onPressed: () async {
+                            if (_email.text.isEmpty) {
+                            setState(() {
+                           _emailErrorMessage = 'Please enter your email first.';
+                                 });
+                            return;
+                          }
+
+                          try {
+                            await FirebaseAuth.instance.sendPasswordResetEmail(email: _email.text.trim());
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Password reset email sent. Check your inbox.')),
+                            );
+                          } on FirebaseAuthException catch (e) {
+                            setState(() {
+                              _generalErrorMessage = 'Error: ${e.message}';
+                            });
+                          }
+                        },
+
+                          child: const Text(
+                            "Forgot Password?",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                        const SizedBox(height: 25),
+                        // Login Button
+                        if (_loading)
+                          const CircularProgressIndicator(color: Colors.green)
+                        else
+                          SizedBox(
+                            height: 50,
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF15A323),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                              onPressed: _login,
+                              child: const Text(
+                                "Sign In as Teacher",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
                           ),
-                          actions: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text("Cancel"),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () {},
-                                  child: const Text("Send!"),
-                                ),
-                              ],
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  child: const Text(
-                    "Forgot Password?",
-                    style: TextStyle(
-                      color: Color.fromARGB(255, 61, 58, 58),
-                      fontWeight: FontWeight.w100,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 25),
-                if (_loading) ...[
-                  const CircularProgressIndicator(color: Colors.green), // Green loading indicator
-                  const SizedBox(height: 20),
-                ],
-                if (!_loading)
-                  SizedBox(
-                    height: 55,
-                    width: 500,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF15A323),
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(50)),
-                        ),
-                      ),
-                      onPressed: _login,
-                      child: const Text(
-                        "Log In as Teacher",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("Don't have an account?"),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) {
-                              return const SignUpTeacher();
-                            },
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        "Sign Up Now!",
-                        style: TextStyle(
-                          color: Color.fromARGB(255, 0, 0, 0),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                        const SizedBox(height: 20),
+                        // Sign Up Section
+                       Container(
+  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  decoration: BoxDecoration(
+    color: Colors.green.withOpacity(0.6),
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Row(
+    mainAxisSize: MainAxisSize.min,
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      const Text(
+        "Don't have an account? ",
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+        ),
+      ),
+      TextButton(
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: Size(0, 0),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SignUpTeacher(),
             ),
+          );
+        },
+        child: const Text(
+          "Sign Up Now!",
+          style: TextStyle(
+            color: Colors.amberAccent,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            
           ),
         ),
       ),
-    );
-  }
+    ],
+  ),
+),
+
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+
 }
